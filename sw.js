@@ -1,5 +1,5 @@
 // Offline-Betrieb: erst Netz (für Updates), bei fehlender Verbindung Cache.
-const V = 'u26-v14';
+const V = 'u26-v15';
 const DATEIEN = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(DATEIEN)));
@@ -12,7 +12,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then(r => {
+    fetch(e.request, { cache: 'no-cache' }).then(r => {
       const kopie = r.clone();
       caches.open(V).then(c => c.put(e.request, kopie));
       return r;

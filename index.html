@@ -284,6 +284,7 @@ function neuerStand(){return{
   schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
+const APP_VERSION='15';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -750,7 +751,7 @@ function vSichern(){
     <p class="hint">Damit iPadOS die Daten nicht löscht: App über Safari › Teilen › „Zum Home-Bildschirm“ ablegen und von dort öffnen.</p></div>
   <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Ansicht</h3>
     <label style="display:flex;align-items:center;gap:10px;margin:0"><input type="checkbox" data-f="alleReiter" ${S.alleReiter?'checked':''} style="width:auto;margin:0"> Alle Reiter anzeigen (Heute, Woche, Jahresplan, Stunden)</label>
-    <p class="hint">Ausgeblendete Reiter behalten ihre Daten.</p></div>
+    <p class="hint">Ausgeblendete Reiter behalten ihre Daten.</p><p class="small muted">App-Version ${APP_VERSION} · ${window.navigator.standalone||matchMedia('(display-mode: standalone)').matches?'Home-Bildschirm-App':'Browser'}</p></div>
   <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Zurücksetzen</h3><p class="small">Löscht alle Daten auf diesem Gerät. Vorher sichern!</p><button class="btn gefahr" data-act="reset">Alle Daten löschen</button></div>`;
 }
 async function speicherInfo(){
@@ -991,7 +992,20 @@ document.addEventListener('change',e=>{const el=e.target.closest('[data-f]');if(
   try{await navigator.storage?.persist?.()}catch{}
   render();
   if(TAB==='sichern')speicherInfo();
-  if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+  if('serviceWorker' in navigator&&location.protocol==='https:'){
+    const hatteSW=!!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
+      /* beim Zurückholen aus dem Hintergrund nach Updates suchen */
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden)reg.update().catch(()=>{})});
+    }).catch(()=>{});
+    /* neue Version aktiv → neu laden, sobald gerade nichts bearbeitet wird */
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(!hatteSW)return;
+      const neu=()=>{schreiben().then(()=>location.reload())};
+      if($('#modal').hidden&&!document.querySelector('.skizze'))neu();
+      else toast('Neue Version verfügbar – wird nach dem Schließen des Dialogs geladen'),document.addEventListener('click',function w(){if($('#modal').hidden&&!document.querySelector('.skizze')){document.removeEventListener('click',w);neu()}});
+    });
+  }
 })();
 </script>
 </body>
