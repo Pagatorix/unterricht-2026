@@ -113,6 +113,10 @@ td:first-child,th:first-child{text-align:left}
 .chip{border:2px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;font-weight:600;min-height:42px}
 .bemschalter{display:flex;align-items:center;gap:8px;margin:0;font-weight:600;font-size:14px;min-height:42px}
 .bemschalter input{width:auto;margin:0}
+.beitr{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bfeld{width:48px;height:48px;border:2px dashed var(--line);border-radius:10px;background:var(--card);font-size:26px;font-weight:700;line-height:1}
+.bfeld.plus{border-style:solid;border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
+.bfeld.minus{border-style:solid;border-color:var(--bad);background:var(--bad-soft);color:var(--bad)}
 .lst td,.lst th{text-align:left}
 .lst .haken{width:44px;height:40px;border:2px solid var(--line);border-radius:8px;background:var(--card);font-size:22px;font-weight:700;color:var(--ok)}
 .lst .haken.an{background:var(--ok-soft);border-color:var(--ok)}
@@ -581,6 +585,10 @@ function oeffneSchueler(id){
     <table><thead><tr><th></th>${SLOTS.map(sl=>`<th>${slotName(sl)}</th>`).join('')}<th>Ø</th><th>Stand</th></tr></thead>
     <tbody>${[1,2].map(h=>`<tr><td>${h}. HJ</td>${SLOTS.map(sl=>`<td>${n[h+'-'+sl]||'–'}${mDatum(id,h+'-'+sl)?`<div class="small muted">${fmtD(mDatum(id,h+'-'+sl)).slice(0,6)}</div>`:''}</td>`).join('')}<td><b>${f2(schnitt(id,h))}</b></td><td class="small">${anzahl(id,h)}</td></tr>`).join('')}
     <tr><td colspan="5"><b>Schuljahr</b></td><td><b>${f2(schnitt(id,0))}</b></td><td></td></tr></tbody></table>
+    <h3>Unterrichtsbeiträge <span class="muted small">${beitrTxt(id)}</span></h3>
+    <div class="beitr">${beitr(id).map((v,i)=>`<button class="bfeld ${v==='+'?'plus':v==='-'?'minus':''}" data-act="beitr" data-id="${id}" data-i="${i}" aria-label="Beitrag ${i+1}">${v==='+'?'+':v==='-'?'−':''}</button>`).join('')}
+      <button class="btn klein" data-act="beitrLeeren" data-id="${id}">Leeren</button></div>
+    <p class="hint">Feld antippen: leer → + → − → leer.</p>
     <h3>Notizen</h3>
     ${(()=>{const ed=NEDIT&&(s.notizen||[]).find(x=>x.id===NEDIT);
       return `<div class="card" style="background:var(--bg)">
@@ -631,7 +639,10 @@ const TYPEN={haken:'Häkchen',text:'Text',betrag:'Betrag (€)'};
 let LID=null, LOFFEN=false;
 function sortKey(s){return (s.nach||s.name.split(' ').slice(1).join(' ')||s.name).toLocaleLowerCase('de')}
 function sortiere(k){S.schueler[k].sort((a,b)=>sortKey(a).localeCompare(sortKey(b),'de')||a.name.localeCompare(b.name,'de'))}
-function migriere(){S.mDaten??={};S.listen??={};S.sitzplan??={};for(const k of KL){S.listen[k]??=[];S.sitzplan[k]??={plaetze:{}};S.sitzplan[k].lehrersicht=true;sortiere(k)}}
+const BEITR=7;
+const beitr=sid=>S.beitraege[sid]||Array(BEITR).fill('');
+const beitrTxt=sid=>{const b=beitr(sid),p=b.filter(x=>x==='+').length,m=b.filter(x=>x==='-').length;return p||m?`${p}× + · ${m}× −`:''};
+function migriere(){S.beitraege??={};S.mDaten??={};S.listen??={};S.sitzplan??={};for(const k of KL){S.listen[k]??=[];S.sitzplan[k]??={plaetze:{}};S.sitzplan[k].lehrersicht=true;sortiere(k)}}
 const liste=()=>S.listen[NK].find(l=>l.id===LID);
 const wert=(l,sid,sp)=>l.werte[sid]?.[sp];
 const leer=(sp,v)=>sp.typ==='haken'?!v:(v==null||v==='');
@@ -710,8 +721,8 @@ function bemerkungen(liste){
 }
 function drucken(sid){
   const L=S.schueler[NK],kd=S.kaDaten[NK];
-  const kopfzeile=`<tr><th>Name</th>${[1,2].map(h=>SLOTS.map(sl=>`<th>${h}. HJ ${slotName(sl)}${kd[h+'-'+sl]?'<br>'+fmtD(kd[h+'-'+sl]):''}</th>`).join('')+`<th>Ø ${h}. HJ</th>`).join('')}<th>Ø Jahr</th></tr>`;
-  const zeile=s=>`<tr><td>${esc(s.name)}</td>${[1,2].map(h=>SLOTS.map(sl=>`<td>${S.noten[s.id]?.[h+'-'+sl]||''}${mDatum(s.id,h+'-'+sl)?`<br><small>${fmtD(mDatum(s.id,h+'-'+sl)).slice(0,6)}</small>`:''}</td>`).join('')+`<td><b>${f2(schnitt(s.id,h))}</b></td>`).join('')}<td><b>${f2(schnitt(s.id,0))}</b></td></tr>`;
+  const kopfzeile=`<tr><th>Name</th>${[1,2].map(h=>SLOTS.map(sl=>`<th>${h}. HJ ${slotName(sl)}${kd[h+'-'+sl]?'<br>'+fmtD(kd[h+'-'+sl]):''}</th>`).join('')+`<th>Ø ${h}. HJ</th>`).join('')}<th>Ø Jahr</th><th>Unterrichts­beiträge</th></tr>`;
+  const zeile=s=>`<tr><td>${esc(s.name)}</td>${[1,2].map(h=>SLOTS.map(sl=>`<td>${S.noten[s.id]?.[h+'-'+sl]||''}${mDatum(s.id,h+'-'+sl)?`<br><small>${fmtD(mDatum(s.id,h+'-'+sl)).slice(0,6)}</small>`:''}</td>`).join('')+`<td><b>${f2(schnitt(s.id,h))}</b></td>`).join('')}<td><b>${f2(schnitt(s.id,0))}</b></td><td style="white-space:nowrap">${beitr(s.id).map(v=>v==='-'?'−':v||'·').join(' ')}</td></tr>`;
   const liste=sid?L.filter(s=>s.id===sid):L;
   $('#druck').innerHTML=`<h1>BwR ${NK} · Notenbild${sid?' · '+esc(liste[0]?.name):''}</h1><p>Stand ${fmtD(heute())} · Gewichtung: Kurzarbeit 1,5, mündlich 1. Der Schnitt dient der Information; maßgeblich ist der Schulmanager.</p>
   <table>${kopfzeile}${liste.map(zeile).join('')}</table>
@@ -864,7 +875,7 @@ const ACT={
       L.push({id:uid(),name:kurzname(t,L.map(s=>s.name)),nach:t.nach,notizen:[]});n++}
     sortiere(NK);save();refreshModal();toast(`${n} hinzugefügt`+(e?`, ${e} ergänzt`:''))},
   schuelerWeg:d=>{const L=S.schueler[NK],s=L.find(x=>x.id===d.id);if(!confirm(`${s.name} mit allen Noten und Notizen entfernen?`))return;
-    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];for(const l of S.listen[NK])delete l.werte[d.id];{const P=S.sitzplan[NK].plaetze;for(const q in P)if(P[q]===d.id)delete P[q]}save();refreshModal()},
+    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];delete S.beitraege[d.id];for(const l of S.listen[NK])delete l.werte[d.id];{const P=S.sitzplan[NK].plaetze;for(const q in P)if(P[q]===d.id)delete P[q]}save();refreshModal()},
   schueler:d=>{NEDIT=null;oeffneSchueler(d.id)},
   notizSpeichern:d=>{const t=$('#notizfeld').value.trim();if(!t){toast('Bitte Text eingeben');return}
     const dat=$('#notizdatum').value||heute(),s=S.schueler[NK].find(x=>x.id===d.id),L=(s.notizen??=[]);
@@ -874,6 +885,8 @@ const ACT={
   notizAbbruch:()=>{NEDIT=null;refreshModal()},
   notizWeg:d=>{if(!confirm('Notiz löschen?'))return;const s=S.schueler[NK].find(x=>x.id===d.id);s.notizen=s.notizen.filter(x=>x.id!==d.nid);if(NEDIT===d.nid)NEDIT=null;save();refreshModal()},
   drucken:d=>drucken(d.id),
+  beitr:d=>{const b=beitr(d.id).slice(),i=+d.i;b[i]=b[i]===''?'+':b[i]==='+'?'-':'';S.beitraege[d.id]=b;save();refreshModal()},
+  beitrLeeren:d=>{if(!confirm('Alle sieben Unterrichtsbeiträge leeren?'))return;delete S.beitraege[d.id];save();refreshModal()},
   spWahl:d=>{SPSEL=SPSEL===d.id?null:d.id;render()},
   spAbwahl:()=>{SPSEL=null;render()},
   spModus:()=>{SPUMSETZEN=!SPUMSETZEN;SPSEL=null;render()},
