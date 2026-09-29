@@ -326,14 +326,14 @@ const mittel=a=>{a=a.filter(x=>x!=null);return a.length?a.reduce((x,y)=>x+y,0)/a
 function anzahl(sid,hj){const n=S.noten[sid]||{};const c=p=>SLOTS.filter(sl=>sl.startsWith(p)&&n[hj+'-'+sl]).length;return `KA ${c('KA')}/2 · mdl. ${c('M')}/2`}
 
 /* ---------- Oberfläche ---------- */
-const TABS=[['heute','Heute'],['woche','Woche'],['plan','Jahresplan'],['stunden','Stunden'],['noten','Noten'],['listen','Listen'],['sitzplan','Sitzplan'],['sichern','Sichern']];
+const TABS=[['sitzplan','Sitzplan'],['heute','Heute'],['woche','Woche'],['plan','Jahresplan'],['stunden','Stunden'],['noten','Noten'],['listen','Listen'],['sichern','Sichern']];
 let NEDIT=null;
-let TAB='heute', WOFF=0, NK='7d', NANS='tabelle', SFILTER='';
-try{TAB=localStorage.getItem('u26tab')||'heute'}catch{}
+let TAB='sitzplan', WOFF=0, NK='7d', NANS='tabelle', SFILTER='';
+try{TAB=localStorage.getItem('u26tab')||'sitzplan'}catch{}
 const REDUZIERT=['noten','listen','sitzplan','sichern'];
 const sichtbar=()=>S.alleReiter?TABS:TABS.filter(([id])=>REDUZIERT.includes(id));
 function render(){
-  if(!sichtbar().some(([id])=>id===TAB))TAB='noten';
+  if(!sichtbar().some(([id])=>id===TAB))TAB=sichtbar()[0][0];
   $('#nav').innerHTML=sichtbar().map(([id,l])=>`<button data-act="tab" data-tab="${id}" class="${TAB===id?'on':''}">${l}</button>`).join('');
   $('#kopfinfo').textContent=fmtL(heute());
   $('#main').innerHTML=({heute:vHeute,woche:vWoche,plan:vPlan,stunden:vStunden,noten:vNoten,listen:vListen,sitzplan:vSitzplan,sichern:vSichern}[TAB]||vHeute)();
@@ -586,7 +586,7 @@ function oeffneSchueler(id){
 }
 /* ----- Sitzplan: 4 Reihen × 8 Tische, Durchgang in der Mitte ----- */
 const REIHEN=4, TISCHE=8;
-let SPSEL=null;
+let SPSEL=null, SPUMSETZEN=false;
 const sp=()=>S.sitzplan[NK];
 const platzVon=sid=>Object.keys(sp().plaetze).find(q=>sp().plaetze[q]===sid);
 function sitzGrid(druck){
@@ -605,10 +605,11 @@ function vSitzplan(){
   const L=S.schueler[NK],P=sp().plaetze,frei=L.filter(s=>!platzVon(s.id));
   const selName=SPSEL&&L.find(s=>s.id===SPSEL)?.name;
   return `<div class="row" style="flex-wrap:wrap">${klassenSeg()}
-    <div class="btns" style="margin:0"><button class="btn" data-act="spZufall">Zufällig verteilen</button><button class="btn" data-act="spLeeren">Alle entfernen</button><button class="btn prim" data-act="spDruck">PDF / Drucken</button></div></div>
+    <div class="btns" style="margin:0"><button class="btn ${SPUMSETZEN?'prim':''}" data-act="spModus">${SPUMSETZEN?'✓ Umsetzen aktiv':'Umsetzen'}</button><button class="btn" data-act="spZufall">Zufällig verteilen</button><button class="btn" data-act="spLeeren">Alle entfernen</button><button class="btn prim" data-act="spDruck">PDF / Drucken</button></div></div>
   ${L.length?'':`<div class="card warn" style="margin-top:12px">Für ${NK} gibt es noch keine Klassenliste. Namen unter <b>Noten › Klassenliste</b> einfügen.</div>`}
   <p class="hint">${selName?`<b>${esc(selName)}</b> ausgewählt – jetzt einen Platz antippen (belegter Platz = Tausch).${platzVon(SPSEL)?' <button class="btn klein" data-act="spRaus">Vom Platz nehmen</button>':''} <button class="btn klein" data-act="spAbwahl">Abbrechen</button>`
-    :'Name unten antippen, dann einen Tisch. Einen belegten Tisch antippen, um die Person umzusetzen.'}</p>
+    :SPUMSETZEN?'Umsetzen: belegten Tisch antippen, dann den Zieltisch (belegt = Tausch). Zum Beenden „Umsetzen“ erneut tippen.'
+    :'Namen im Plan antippen öffnet die Notizen. Zum Platzieren einen Namen unten antippen, dann einen Tisch. Zum Verschieben „Umsetzen“ wählen.'}</p>
   <div class="card">${sitzGrid(false)}</div>
   <h3>Noch ohne Platz (${frei.length})</h3>
   <div class="chips">${frei.map(s=>`<button class="chip ${s.id===SPSEL?'sel':''}" data-act="spWahl" data-id="${s.id}">${esc(s.name)}</button>`).join('')||'<span class="muted small">Alle haben einen Platz.</span>'}</div>
@@ -862,8 +863,9 @@ const ACT={
   drucken:d=>drucken(d.id),
   spWahl:d=>{SPSEL=SPSEL===d.id?null:d.id;render()},
   spAbwahl:()=>{SPSEL=null;render()},
+  spModus:()=>{SPUMSETZEN=!SPUMSETZEN;SPSEL=null;render()},
   spPlatz:d=>{const P=sp().plaetze,cur=P[d.p];
-    if(!SPSEL){if(cur)SPSEL=cur;render();return}
+    if(!SPSEL){if(cur){if(SPUMSETZEN){SPSEL=cur;render()}else{NEDIT=null;oeffneSchueler(cur)}}return}
     if(cur===SPSEL){SPSEL=null;render();return}
     const von=platzVon(SPSEL);
     if(von){if(cur)P[von]=cur;else delete P[von]}

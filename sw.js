@@ -1,5 +1,5 @@
 // Offline-Betrieb: erst Netz (für Updates), bei fehlender Verbindung Cache.
-const V = 'u26-v9';
+const V = 'u26-v10';
 const DATEIEN = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(DATEIEN)));
