@@ -158,7 +158,7 @@ td:first-child,th:first-child{text-align:left}
 <div id="modal" hidden></div>
 <div id="toast"></div>
 <div id="druck"></div>
-<input type="file" id="importdatei" accept=".json,application/json" hidden>
+<input type="file" id="importdatei" accept=".json,application/json,text/plain" hidden>
 <script>
 'use strict';
 /* ---------- Hilfen ---------- */
@@ -689,14 +689,24 @@ async function sichern(){
   const n=new Date(),hm=String(n.getHours()).padStart(2,'0')+String(n.getMinutes()).padStart(2,'0');
   const name=`unterricht-2026_sicherung_${heute()}_${hm}.json`;
   const text=JSON.stringify({app:'unterricht-2026',exportiert:n.toISOString(),stand:S});
-  const blob=new Blob([text],{type:'application/json'});
-  const ok=()=>{S.letzteSicherung=new Date().toISOString();save();render();speicherInfo();toast('Sicherung erstellt')};
-  try{
-    const file=new File([blob],name,{type:'application/json'});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});ok();return}
-  }catch(e){if(e.name==='AbortError')return}
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href),5000);ok();
+  const ok=wie=>{S.letzteSicherung=new Date().toISOString();save();speicherInfo();toast(wie)};
+  let grund='Teilen wird von diesem Browser nicht unterstützt';
+  if(navigator.share){
+    /* iPadOS lehnt JSON teils ab – dann als Text-Datei mit gleichem Namen teilen */
+    for(const typ of ['application/json','text/plain']){
+      const file=new File([text],name,{type:typ});
+      if(navigator.canShare&&!navigator.canShare({files:[file]})){grund=`Dateityp ${typ} wird nicht geteilt`;continue}
+      try{await navigator.share({files:[file]});ok('Sicherung erstellt');render();return}
+      catch(e){if(e.name==='AbortError')return;grund=`${e.name}: ${e.message}`;break}
+    }
+  }
+  const url=URL.createObjectURL(new Blob([text],{type:'application/octet-stream'}));
+  modal(()=>`<h2>Sicherung herunterladen</h2>
+    <p>Das Teilen-Menü hat sich nicht geöffnet. Tippen Sie auf den Knopf, um die Sicherung als Datei zu speichern.</p>
+    <a class="btn prim" style="display:inline-block;text-decoration:none" href="${url}" download="${name}" data-act="dlOk">Sicherung herunterladen</a>
+    <p class="small" style="margin-top:14px">Safari legt die Datei unter <b>Dateien › Downloads</b> ab (bei Nachfrage „Laden“ wählen). Von dort mit langem Tippen › <b>Bewegen</b> nach <b>ByCS Drive › persönlich › unterricht-sicherung</b> verschieben.</p>
+    <p class="hint">Technischer Grund: ${esc(grund)}</p>
+    <div class="btns"><button class="btn" data-act="zu">Schließen</button></div>`);
 }
 $('#importdatei').addEventListener('change',async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
@@ -803,6 +813,7 @@ const ACT={
   notizAbbruch:()=>{NEDIT=null;refreshModal()},
   notizWeg:d=>{if(!confirm('Notiz löschen?'))return;const s=S.schueler[NK].find(x=>x.id===d.id);s.notizen=s.notizen.filter(x=>x.id!==d.nid);if(NEDIT===d.nid)NEDIT=null;save();refreshModal()},
   drucken:d=>drucken(d.id),
+  dlOk:()=>{S.letzteSicherung=new Date().toISOString();save();setTimeout(()=>toast('Download gestartet – bitte nach ByCS Drive verschieben'),300)},
   lNeu:()=>oeffneNeueListe(),
   lAnlegen:()=>{const t=$('#ltitel').value.trim();if(!t){toast('Bitte Titel eingeben');return}
     const l={id:uid(),titel:t,datum:$('#ldatum').value,spalten:[{id:uid(),name:$('#spname').value.trim()||'Spalte 1',typ:$('#sptyp').value}],werte:{}};
