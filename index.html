@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Unterricht">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1f5f8b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Unterricht 2026/27</title>
+<style>
+:root{
+  --bg:#f3f4f6;--card:#fff;--ink:#1c2430;--muted:#687282;--line:#dde1e7;
+  --acc:#1f5f8b;--acc-ink:#fff;--acc-soft:#e3eef6;
+  --ok:#2e7d4f;--ok-soft:#e1f2e7;--warn:#9a5b00;--warn-soft:#fbefd9;--bad:#b3261e;--bad-soft:#fbe3e0;
+  --ka:#6b3fa0;--ka-soft:#efe7f8;--aus:#6b7280;--aus-soft:#eceef1;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14181e;--card:#1e242c;--ink:#e6e9ee;--muted:#9aa3b0;--line:#323a45;
+  --acc:#5aa6d8;--acc-ink:#0d1a24;--acc-soft:#1d3444;
+  --ok:#6cc58f;--ok-soft:#1b3326;--warn:#e0a44a;--warn-soft:#3a2d17;--bad:#f08a80;--bad-soft:#3d1f1c;
+  --ka:#b99be0;--ka-soft:#2e2540;--aus:#a0a7b2;--aus-soft:#2a3038;
+}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-text-size-adjust:100%;padding-bottom:env(safe-area-inset-bottom)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--acc)}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:calc(8px + env(safe-area-inset-top)) 16px 0}
+.kopf{display:flex;align-items:baseline;gap:12px;max-width:1100px;margin:0 auto}
+.kopf h1{font-size:18px;margin:0}
+.kopf .muted{font-size:14px}
+nav{display:flex;gap:4px;max-width:1100px;margin:6px auto 0;overflow-x:auto}
+nav button{border:0;background:none;padding:10px 14px;border-bottom:3px solid transparent;color:var(--muted);font-weight:600;white-space:nowrap}
+nav button.on{color:var(--acc);border-bottom-color:var(--acc)}
+main{max-width:1100px;margin:0 auto;padding:16px}
+h2{font-size:18px;margin:24px 0 10px}
+h3{font-size:16px;margin:16px 0 8px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.liste{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.kl{display:inline-block;background:var(--acc);color:var(--acc-ink);border-radius:8px;padding:2px 8px;font-size:14px;font-weight:700}
+.pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600;white-space:nowrap}
+.ok,.st-ok{background:var(--ok-soft);color:var(--ok)}
+.warn{background:var(--warn-soft);color:var(--warn)}
+.bad{background:var(--bad-soft);color:var(--bad)}
+.st-offen{background:var(--acc-soft);color:var(--acc)}
+.st-ka{background:var(--ka-soft);color:var(--ka)}
+.st-aus{background:var(--aus-soft);color:var(--aus);text-decoration:line-through}
+.badge{background:var(--warn-soft);color:var(--warn);border-radius:999px;padding:1px 9px;font-size:14px}
+.bar{position:relative;height:10px;background:var(--line);border-radius:6px;margin:10px 0 6px;overflow:visible}
+.bar .ist{height:100%;background:var(--acc);border-radius:6px}
+.bar .soll{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink)}
+.termin{display:flex;align-items:center;gap:14px;text-align:left;width:100%;min-height:60px}
+.termin .tk{display:flex;flex-direction:column;gap:4px;min-width:112px;font-size:14px}
+.termin .tk .kl{align-self:flex-start}
+.termin .tt{flex:1;min-width:0}
+.notizvor{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:9px 14px;font-weight:600;min-height:42px}
+.btn.prim{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+.btn.gefahr{color:var(--bad);border-color:var(--bad)}
+.btn.klein{padding:4px 10px;min-height:34px;font-size:14px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex-wrap:wrap}
+.seg button{border:0;background:var(--card);padding:9px 14px;font-weight:600;min-height:42px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--acc);color:var(--acc-ink)}
+label{display:block;margin:12px 0 4px;font-weight:600;font-size:14px}
+label>input,label>select,label>textarea{display:block;width:100%;margin-top:4px;font-weight:400}
+input,select,textarea{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 10px;font-size:16px}
+textarea{min-height:80px;resize:vertical}
+.hint{font-size:13px;color:var(--muted);margin:4px 0}
+.banner{margin-bottom:12px}
+.vorschau{background:var(--bg);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:15px}
+.vorschau div+div{margin-top:4px}
+.thumb{display:block;max-width:100%;max-height:220px;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:6px}
+.srow{display:flex;align-items:center;gap:10px;padding:8px 10px}
+.srow .nr{width:28px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.srow .grow{flex:1;text-align:left;border:0;background:none;padding:6px 0;min-width:0}
+.icon{border:1px solid var(--line);background:var(--card);border-radius:8px;width:38px;height:38px}
+.woche{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.tag{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;min-height:120px}
+.tag.heute{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.tag .tkopf{font-weight:700;font-size:14px;margin-bottom:6px}
+.tag .frei{color:var(--muted);font-size:13px;font-style:italic}
+.tag .termin{flex-direction:column;align-items:flex-start;gap:6px;padding:8px;min-height:0;margin-bottom:6px}
+.tag .termin .tk{flex-direction:row;min-width:0;align-items:center;gap:6px}
+.tabwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:center;font-variant-numeric:tabular-nums}
+th{font-size:13px;color:var(--muted);font-weight:600}
+td:first-child,th:first-child{text-align:left}
+.noten td.trenn,.noten th.trenn{border-left:2px solid var(--line)}
+.noten input.g{width:42px;height:40px;text-align:center;padding:0;font-size:18px;font-weight:600}
+.noten input[type=date]{font-size:12px;padding:2px 4px;width:118px;margin-top:4px}
+.noten .avg{font-weight:700}
+.noten tfoot td{color:var(--muted);font-weight:600}
+.link{border:0;background:none;color:var(--acc);font-weight:600;padding:4px 0;text-align:left}
+.plan td{text-align:left}
+.plan td.num{text-align:center}
+.plan input.titel{width:100%}
+.plan input.std{width:64px;text-align:center}
+.plan tr.lb td{background:var(--acc-soft);font-weight:700}
+.vert{display:flex;align-items:flex-end;gap:6px;height:90px;margin:10px 0 2px}
+.vert div{flex:1;background:var(--acc);border-radius:4px 4px 0 0;min-height:2px;position:relative}
+.vert div span{position:absolute;top:-18px;left:0;right:0;text-align:center;font-size:12px;color:var(--ink)}
+.vertl{display:flex;gap:6px}.vertl span{flex:1;text-align:center;font-size:12px;color:var(--muted)}
+.kpi{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:20;display:flex;align-items:flex-start;justify-content:center;padding:calc(20px + env(safe-area-inset-top)) 12px 20px;overflow-y:auto}
+#modal[hidden]{display:none}
+.mbox{background:var(--card);border-radius:14px;padding:18px;width:100%;max-width:760px;position:relative}
+.mbox h2{margin-top:0;padding-right:44px}
+.mbox .x{position:absolute;top:12px;right:12px;border:0;background:var(--bg);border-radius:50%;width:38px;height:38px;font-size:18px}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:10px;z-index:40;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.an{opacity:1}
+.skizze{position:fixed;inset:0;background:var(--bg);z-index:30;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 8px env(safe-area-inset-bottom)}
+.sk-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 0}
+.sk-bar .farbe{width:36px;height:36px;border-radius:50%;border:3px solid transparent}
+.sk-bar .farbe.on{border-color:var(--acc)}
+.sk-bar .btn.on{background:var(--acc);color:var(--acc-ink)}
+.sk-wrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+.sk-wrap canvas{background:#fff;border:1px solid var(--line);border-radius:8px;touch-action:none;max-width:100%;max-height:100%;aspect-ratio:16/10}
+.sk-sp{flex:1}
+#druck{display:none}
+@media (max-width:700px){.woche{grid-template-columns:1fr}.termin .tk{min-width:84px}}
+@media print{
+  body{background:#fff;color:#000}
+  body>*:not(#druck){display:none!important}
+  #druck{display:block;font-size:12pt}
+  #druck table{border-collapse:collapse}
+  #druck th,#druck td{border:1px solid #999;padding:4px 6px;color:#000}
+  #druck h1{font-size:16pt}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="kopf"><h1>BwR 7 · 2026/27</h1><span class="muted" id="kopfinfo"></span></div>
+  <nav id="nav"></nav>
+</header>
+<main id="main"><p class="muted">Lade …</p></main>
+<div id="modal" hidden></div>
+<div id="toast"></div>
+<div id="druck"></div>
+<input type="file" id="importdatei" accept=".json,application/json" hidden>
+<script>
+'use strict';
+/* ---------- Hilfen ---------- */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
+const f2=x=>x==null?'–':x.toFixed(2).replace('.',',');
+
+/* ---------- Kalender Schuljahr 2026/27 (Bayern) ---------- */
+const START='2026-09-15', ENDE='2027-07-30';
+const FREI=[
+  ['2026-11-02','2026-11-06','Herbstferien'],
+  ['2026-11-18','2026-11-18','Buß- und Bettag'],
+  ['2026-12-24','2027-01-08','Weihnachtsferien'],
+  ['2027-02-08','2027-02-12','Frühjahrsferien'],
+  ['2027-03-22','2027-04-02','Osterferien'],
+  ['2027-05-06','2027-05-06','Christi Himmelfahrt'],
+  ['2027-05-17','2027-05-17','Pfingstmontag'],
+  ['2027-05-18','2027-05-28','Pfingstferien'],
+];
+/* Stichtage der Schule (Jahresrhythmus RSK 2026/27) */
+const STICHTAGE=[
+  ['2026-12-18','Notenbild-Information'],
+  ['2027-02-19','Zwischenzeugnis (Ende 1. Halbjahr)'],
+  ['2027-04-30','Notenbild-Information'],
+  ['2027-07-16','Notenschluss Jgst. 5–9'],
+  ['2027-07-30','Jahreszeugnis'],
+];
+const WT=['So','Mo','Di','Mi','Do','Fr','Sa'];
+const WTL=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+const MON=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const pd=s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const addDays=(s,n)=>{const d=pd(s);d.setDate(d.getDate()+n);return iso(d)};
+const heute=()=>iso(new Date());
+const frei=s=>FREI.find(([a,b])=>a<=s&&s<=b);
+const fmtK=s=>`${WT[pd(s).getDay()]} ${s.slice(8,10)}.${s.slice(5,7)}.`;
+const fmtL=s=>{const d=pd(s);return `${WTL[d.getDay()]}, ${d.getDate()}. ${MON[d.getMonth()]} ${d.getFullYear()}`};
+const fmtD=s=>s?`${s.slice(8,10)}.${s.slice(5,7)}.${s.slice(0,4)}`:'';
+const montag=s=>{const d=pd(s);d.setDate(d.getDate()-((d.getDay()+6)%7));return iso(d)};
+function kw(s){const d=pd(s);d.setDate(d.getDate()+3-((d.getDay()+6)%7));const j=new Date(d.getFullYear(),0,4);return 1+Math.round(((d-j)/864e5-3+((j.getDay()+6)%7))/7)}
+
+/* Stundenplan: Wochentag (0=So) und Unterrichtsstunde */
+const KLASSEN={'7d':[{wd:2,std:3},{wd:4,std:4}],'7e':[{wd:2,std:4},{wd:4,std:3}]};
+const KL=Object.keys(KLASSEN);
+const TERMINE={};
+for(const k of KL){
+  const l=[];
+  for(let s=START;s<=ENDE;s=addDays(s,1)){
+    if(frei(s))continue;
+    const wd=pd(s).getDay();
+    for(const sl of KLASSEN[k]) if(sl.wd===wd) l.push({key:k+'|'+s,k,d:s,std:sl.std});
+  }
+  TERMINE[k]=l;
+}
+const ALLE=KL.flatMap(k=>TERMINE[k]).sort((a,b)=>a.d.localeCompare(b.d)||a.std-b.std);
+const terminVon=key=>TERMINE[key.split('|')[0]].find(t=>t.key===key);
+
+/* ---------- Lehrplan BwR 7 IIIa (LehrplanPLUS) ---------- */
+const LB=[
+  {nr:1,titel:'Wirtschaftliches Handeln im privaten Haushalt',std:19},
+  {nr:2,titel:'Wirtschaftliches Handeln im Unternehmen',std:17},
+  {nr:3,titel:'Einführung in die Geschäftsbuchführung',std:17},
+  {nr:4,titel:'Buchhalterische Erfassung des Produktionsprozesses',std:16},
+];
+/* Unterthemen: Vorschlag, in der App anpassbar */
+const THEMEN_START=[
+  [1,'Bedürfnisse, Güter und ökonomisches Prinzip',3],
+  [1,'Einnahmen und Ausgaben, Haushaltsplan',4],
+  [1,'Kaufentscheidungen: Angebotsvergleich, Nutzwertanalyse',4],
+  [1,'Zahlungsverkehr: Girokonto, Überweisung, Kartenzahlung',4],
+  [1,'Sparen, nachhaltiger Konsum',2],
+  [1,'Übung und Wiederholung LB 1',2],
+  [2,'Unternehmen und Produktionsfaktoren',3],
+  [2,'Unternehmensziele und Zielkonflikte',3],
+  [2,'Betrieblicher Leistungsprozess: Beschaffung – Produktion – Absatz',4],
+  [2,'Güter- und Geldströme, Belege',4],
+  [2,'Übung und Wiederholung LB 2',3],
+  [3,'Aufgaben und Grundsätze der Buchführung, Belegprinzip',3],
+  [3,'Kontenrahmen und Kontenplan',2],
+  [3,'Buchungssatz: Soll und Haben',4],
+  [3,'Umsatzsteuer: Vorsteuer, Umsatzsteuer, Zahllast',4],
+  [3,'Buchen einfacher Geschäftsfälle nach Belegen',4],
+  [4,'Einkauf von Werkstoffen, Werkstoffarten',4],
+  [4,'Bezugskosten und Sofortrabatt',3],
+  [4,'Verkauf von Fertigerzeugnissen',4],
+  [4,'Vertriebskosten und Rücksendungen',3],
+  [4,'Übung und Vernetzung LB 4',2],
+];
+const SLOTS=['KA1','KA2','M1','M2'];
+const gew=sl=>sl.startsWith('KA')?1.5:1;
+const slotName=sl=>sl.startsWith('KA')?'KA '+sl.slice(2):'mdl. '+sl.slice(1);
+
+/* ---------- Datenstand ---------- */
+let S=null;
+function neuerStand(){return{
+  v:1,erstellt:new Date().toISOString(),puffer:5,
+  lb:LB.map(x=>({...x})),
+  themen:THEMEN_START.map(([lb,titel,std])=>({id:uid(),lb,titel,std})),
+  stunden:[],tagebuch:{},
+  schueler:{'7d':[],'7e':[]},noten:{},kaDaten:{'7d':{},'7e':{}},
+  letzteSicherung:null,
+}}
+const DBN='unterricht2026', STORE='kv';
+let dbP=null;
+function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function laden(){
+  try{const db=await idb();return await new Promise((res,rej)=>{const q=db.transaction(STORE).objectStore(STORE).get('stand');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+  catch(e){try{return JSON.parse(localStorage.getItem(DBN))}catch{return null}}
+}
+async function schreiben(){
+  try{const db=await idb();await new Promise((res,rej)=>{const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).put(S,'stand');t.oncomplete=res;t.onerror=()=>rej(t.error)})}
+  catch(e){try{localStorage.setItem(DBN,JSON.stringify(S))}catch{toast('Speichern fehlgeschlagen – bitte sofort sichern!')}}
+}
+let saveT;
+function save(){clearTimeout(saveT);saveT=setTimeout(schreiben,250)}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&S){clearTimeout(saveT);schreiben()}});
+
+/* ---------- Abfragen ---------- */
+const stunde=id=>id?S.stunden.find(s=>s.id===id):null;
+const thema=id=>id?S.themen.find(t=>t.id===id):null;
+const tb=key=>S.tagebuch[key]||{};
+function setTb(key,patch){S.tagebuch[key]={...tb(key),...patch};save()}
+const STATUS={offen:{l:'offen',c:'st-offen'},gehalten:{l:'gehalten',c:'st-ok'},kurzarbeit:{l:'Kurzarbeit',c:'st-ka'},ausgefallen:{l:'ausgefallen',c:'st-aus'}};
+const status=t=>tb(t.key).status||'offen';
+const lpSumme=()=>S.themen.reduce((a,t)=>a+(+t.std||0),0);
+const faktor=k=>lpSumme()/Math.max(1,TERMINE[k].length-S.puffer);
+const soll=k=>Math.min(lpSumme(),TERMINE[k].filter(t=>t.d<heute()).length*faktor(k));
+const zaehlt=t=>status(t)==='gehalten'&&thema(stunde(tb(t.key).stundeId)?.themaId);
+const ist=k=>TERMINE[k].filter(zaehlt).length;
+function letzteGehaltene(k,vor){const l=TERMINE[k].filter(t=>t.d<vor&&status(t)==='gehalten'&&stunde(tb(t.key).stundeId));return l.at(-1)}
+function vorschlag(k,d){
+  const l=letzteGehaltene(k,d);
+  if(!l)return S.stunden[0]?.id||'';
+  const i=S.stunden.findIndex(s=>s.id===tb(l.key).stundeId);
+  return S.stunden[i+1]?.id||'';
+}
+function gehaltenBei(sid,k){return TERMINE[k].filter(t=>tb(t.key).stundeId===sid&&status(t)==='gehalten')}
+function zeitraum(i){
+  const f=faktor('7d'),L=TERMINE['7d'];let vor=0;
+  for(let j=0;j<i;j++)vor+=+S.themen[j].std||0;
+  const std=+S.themen[i].std||0;
+  const a=Math.min(L.length-1,Math.floor(vor/f)), b=Math.min(L.length-1,Math.max(a,Math.ceil((vor+std)/f)-1));
+  return std?`${fmtK(L[a].d)} – ${fmtK(L[b].d)}`:'–';
+}
+function schnitt(sid,hj){
+  const n=S.noten[sid]||{};let s=0,w=0;
+  for(const h of hj?[hj]:[1,2])for(const sl of SLOTS){const v=n[h+'-'+sl];if(v){s+=v*gew(sl);w+=gew(sl)}}
+  return w?s/w:null;
+}
+const mittel=a=>{a=a.filter(x=>x!=null);return a.length?a.reduce((x,y)=>x+y,0)/a.length:null};
+function anzahl(sid,hj){const n=S.noten[sid]||{};const c=p=>SLOTS.filter(sl=>sl.startsWith(p)&&n[hj+'-'+sl]).length;return `KA ${c('KA')}/2 · mdl. ${c('M')}/2`}
+
+/* ---------- Oberfläche ---------- */
+const TABS=[['heute','Heute'],['woche','Woche'],['plan','Jahresplan'],['stunden','Stunden'],['noten','Noten'],['sichern','Sichern']];
+let TAB='heute', WOFF=0, NK='7d', NANS='tabelle', SFILTER='';
+try{TAB=localStorage.getItem('u26tab')||'heute'}catch{}
+function render(){
+  $('#nav').innerHTML=TABS.map(([id,l])=>`<button data-act="tab" data-tab="${id}" class="${TAB===id?'on':''}">${l}</button>`).join('');
+  $('#kopfinfo').textContent=fmtL(heute());
+  $('#main').innerHTML=({heute:vHeute,woche:vWoche,plan:vPlan,stunden:vStunden,noten:vNoten,sichern:vSichern}[TAB]||vHeute)();
+}
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('an');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('an'),2200)}
+
+let modalFn=null, modalZurueck=null;
+function modal(fn,zurueck=null){
+  modalFn=fn;modalZurueck=zurueck;
+  $('#modal').innerHTML=`<div class="mbox"><button class="x" data-act="zu" aria-label="Schließen">✕</button><div id="mbody">${fn()}</div></div>`;
+  $('#modal').hidden=false;
+}
+function refreshModal(){if(modalFn)$('#mbody').innerHTML=modalFn()}
+function zu(){
+  const z=modalZurueck;modalFn=null;modalZurueck=null;
+  if(z){z();return}
+  $('#modal').hidden=true;$('#modal').innerHTML='';render();
+}
+
+function sicherungsBanner(){
+  const l=S.letzteSicherung;
+  const tage=l?Math.floor((Date.now()-new Date(l))/864e5):null;
+  if(l&&tage<7)return '';
+  return `<div class="card banner warn row"><span>${l?`Letzte Sicherung vor ${tage} Tagen.`:'Noch keine Sicherung angelegt.'} Bitte in ByCS Drive sichern.</span><button class="btn klein" data-act="sichern">Jetzt sichern</button></div>`;
+}
+function standKarte(k){
+  const so=soll(k),is=ist(k),sum=lpSumme()||1,d=is-so;
+  const [cls,txt]=d>1.5?['ok',`${Math.round(d)} Std. voraus`]:d>=-1.5?['ok','im Plan']:d>=-4?['warn',`${Math.round(-d)} Std. hinter Soll`]:['bad',`${Math.round(-d)} Std. hinter Soll`];
+  const l=letzteGehaltene(k,'9999'),th=l&&thema(stunde(tb(l.key).stundeId)?.themaId);
+  return `<div class="card"><div class="row"><b class="kl">${k}</b><span class="pill ${cls}">${txt}</span></div>
+  <div class="bar"><div class="ist" style="width:${Math.min(100,is/sum*100)}%"></div><div class="soll" style="left:${Math.min(100,so/sum*100)}%" title="Soll"></div></div>
+  <div class="muted small">Ist ${is} · Soll ${Math.round(so)} von ${lpSumme()} Lehrplanstunden${th?` · zuletzt LB ${th.lb}: ${esc(th.titel)}`:''}</div></div>`;
+}
+function terminKarte(t){
+  const e=tb(t.key),st=STATUS[status(t)],s=stunde(e.stundeId),th=s&&thema(s.themaId);
+  return `<button class="card termin" data-act="termin" data-key="${t.key}">
+    <div class="tk"><b class="kl">${t.k}</b><span>${fmtK(t.d)} · ${t.std}. Std.</span></div>
+    <div class="tt">${s?esc(s.titel||'(ohne Titel)'):'<span class="muted">keine Stunde zugeordnet</span>'}
+      ${th?`<div class="muted small">LB ${th.lb} · ${esc(th.titel)}</div>`:''}
+      ${e.notiz?`<div class="small notizvor">${esc(e.notiz)}</div>`:''}</div>
+    <span class="pill ${st.c}">${st.l}</span></button>`;
+}
+
+/* ----- Heute ----- */
+function vHeute(){
+  const h=heute();
+  let liste=ALLE.filter(t=>t.d===h),titel='Heute';
+  if(!liste.length){const n=ALLE.find(t=>t.d>h);if(n){liste=ALLE.filter(t=>t.d===n.d);titel='Nächster Unterrichtstag: '+fmtL(n.d)}}
+  const offen=ALLE.filter(t=>t.d<h&&status(t)==='offen');
+  return `${sicherungsBanner()}
+  <div class="grid2">${KL.map(standKarte).join('')}</div>
+  <h2>${titel}</h2>
+  <div class="liste">${liste.map(terminKarte).join('')||'<p class="muted">Keine Termine mehr in diesem Schuljahr.</p>'}</div>
+  ${offen.length?`<h2>Nachtragen <span class="badge">${offen.length}</span></h2><p class="muted small">Vergangene Termine ohne Eintrag – bitte Stunde und Status festhalten.</p>
+  <div class="liste">${offen.slice().reverse().map(terminKarte).join('')}</div>`:''}`;
+}
+
+/* ----- Woche ----- */
+function vWoche(){
+  const mo=addDays(montag(heute()),WOFF*7),tage=[0,1,2,3,4].map(i=>addDays(mo,i)),h=heute();
+  return `<div class="row"><button class="btn" data-act="wo" data-d="-1">‹ zurück</button>
+    <div style="text-align:center"><b>KW ${kw(mo)}</b><div class="muted small">${fmtD(mo)} – ${fmtD(tage[4])}</div></div>
+    <div class="btns" style="margin:0"><button class="btn" data-act="wo" data-d="0">Heute</button><button class="btn" data-act="wo" data-d="1">weiter ›</button></div></div>
+  <div class="woche" style="margin-top:12px">${tage.map(d=>{
+    const f=frei(d),ts=ALLE.filter(t=>t.d===d);
+    const ausser=d<START||d>ENDE;
+    const st=STICHTAGE.filter(x=>x[0]===d).map(x=>`<div class="pill warn small" style="margin-bottom:6px">${x[1]}</div>`).join('');
+    return `<div class="tag ${d===h?'heute':''}"><div class="tkopf">${fmtK(d)}</div>${st}${f?`<div class="frei">${f[2]}</div>`:ausser?'<div class="frei">kein Schuljahr</div>':ts.map(terminKarte).join('')}</div>`}).join('')}</div>`;
+}
+
+/* ----- Jahresplan ----- */
+function vPlan(){
+  const h=heute();
+  const kopf=KL.map(k=>{const L=TERMINE[k],bis=L.filter(t=>t.d<h).length,aus=L.filter(t=>status(t)==='ausgefallen').length,ka=L.filter(t=>status(t)==='kurzarbeit').length;
+    return `<div class="card"><b class="kl">${k}</b> <span class="muted small">${KLASSEN[k].map(s=>WT[s.wd]+' '+s.std+'.').join(', ')}</span>
+    <div class="small" style="margin-top:6px">${L.length} Termine im Schuljahr · ${bis} vorbei · ${L.length-bis} verbleibend<br>${aus} ausgefallen · ${ka} Kurzarbeit · ${ist(k)} Lehrplanstunden gehalten</div></div>`}).join('');
+  let rows='';
+  for(const lb of S.lb){
+    const th=S.themen.map((t,i)=>[t,i]).filter(([t])=>t.lb===lb.nr);
+    const sum=th.reduce((a,[t])=>a+(+t.std||0),0);
+    rows+=`<tr class="lb"><td colspan="3">LB ${lb.nr} · ${esc(lb.titel)}</td><td class="num">${sum}${sum!==lb.std?` <span class="pill warn">Richtwert ${lb.std}</span>`:''}</td>${KL.map(()=>'<td></td>').join('')}<td></td></tr>`;
+    for(const [t,i] of th){
+      rows+=`<tr><td class="num muted">${i+1}</td><td><input class="titel" data-f="thTitel" data-id="${t.id}" value="${esc(t.titel)}"></td>
+      <td class="small muted" style="white-space:nowrap">${zeitraum(i)}</td>
+      <td class="num"><input class="std" type="number" min="0" inputmode="numeric" data-f="thStd" data-id="${t.id}" value="${t.std}"></td>
+      ${KL.map(k=>{const n=TERMINE[k].filter(x=>zaehlt(x)&&stunde(tb(x.key).stundeId).themaId===t.id).length;return `<td class="num"><span class="pill ${n>=t.std&&n?'ok':n?'st-offen':''}">${n}</span></td>`}).join('')}
+      <td class="num"><button class="icon" data-act="thWeg" data-id="${t.id}" aria-label="Unterthema löschen">🗑</button></td></tr>`;
+    }
+    rows+=`<tr><td></td><td colspan="${4+KL.length}"><button class="btn klein" data-act="thNeu" data-lb="${lb.nr}">+ Unterthema in LB ${lb.nr}</button></td></tr>`;
+  }
+  return `<div class="grid2">${kopf}</div>
+  <div class="card" style="margin-top:12px"><div class="row" style="flex-wrap:wrap">
+    <span><b>${lpSumme()} Lehrplanstunden</b> auf ${TERMINE['7d'].length} Termine (7d) · Puffer für Kurzarbeiten, Ausfälle, Wiederholung:</span>
+    <span><input type="number" min="0" max="40" style="width:70px" data-f="puffer" value="${S.puffer}"> Termine</span></div>
+    <p class="hint">Die Sollkurve verteilt die Lehrplanstunden gleichmäßig auf alle Termine abzüglich Puffer. Zeiträume beziehen sich auf 7d (7e liegt am selben Tag).</p></div>
+  <h2>Lernbereiche und Unterthemen</h2>
+  <p class="hint">Unterthemen sind ein Vorschlag aus den Lernbereichen des LehrplanPLUS (BwR 7, IIIa). Titel und Stunden direkt anpassen. Spalten 7d/7e: gehaltene Stunden je Unterthema.</p>
+  <div class="tabwrap"><table class="plan"><thead><tr><th>#</th><th>Unterthema</th><th>geplant (7d)</th><th>Std.</th>${KL.map(k=>`<th>${k}</th>`).join('')}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+/* ----- Stunden ----- */
+function themaOptionen(sel){return S.lb.map(lb=>`<optgroup label="LB ${lb.nr} · ${esc(lb.titel)}">${S.themen.filter(t=>t.lb===lb.nr).map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''}>${esc(t.titel)}</option>`).join('')}</optgroup>`).join('')}
+function vStunden(){
+  const liste=S.stunden.map((s,i)=>[s,i]).filter(([s])=>!SFILTER||String(thema(s.themaId)?.lb)===SFILTER);
+  return `<div class="row" style="flex-wrap:wrap">
+    <select data-f="sFilter"><option value="">Alle Lernbereiche</option>${S.lb.map(l=>`<option value="${l.nr}" ${SFILTER==l.nr?'selected':''}>LB ${l.nr}</option>`).join('')}</select>
+    <button class="btn prim" data-act="sNeu">+ Neue Stunde</button></div>
+  <p class="hint">Die Reihenfolge bestimmt den Vorschlag „nächste Stunde“ im Tagebuch. Eine Stunde wird einmal vorbereitet und in 7d und 7e gehalten.</p>
+  <div class="liste">${liste.map(([s,i])=>{const th=thema(s.themaId);
+    return `<div class="card srow"><span class="nr">${i+1}</span>
+    <button class="grow" data-act="stunde" data-id="${s.id}"><b>${esc(s.titel||'(ohne Titel)')}</b><div class="muted small">${th?`LB ${th.lb} · ${esc(th.titel)}`:'kein Unterthema'}</div></button>
+    <span class="small" style="text-align:right">${KL.map(k=>{const g=gehaltenBei(s.id,k);return `${k}: ${g.length?'✓ '+fmtK(g[0].d):'–'}`}).join('<br>')}</span>
+    <button class="icon" data-act="sHoch" data-id="${s.id}" aria-label="nach oben">▲</button><button class="icon" data-act="sRunter" data-id="${s.id}" aria-label="nach unten">▼</button></div>`}).join('')||'<p class="muted">Noch keine Stunden angelegt.</p>'}</div>`;
+}
+function linksHtml(txt){return (txt||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>/^https?:\/\//.test(l)?`<a href="${esc(l)}" target="_blank" rel="noopener">${esc(l)}</a>`:esc(l)).join('<br>')}
+function neueStunde(){
+  const letzte=S.stunden.at(-1);
+  const s={id:uid(),titel:'',themaId:letzte?.themaId||S.themen[0]?.id||null,material:'',links:'',goodnotes:'',ha:'',skizze:null};
+  S.stunden.push(s);save();return s;
+}
+function oeffneStunde(id,zurueck=null){
+  modal(()=>{const s=stunde(id);if(!s)return '<p>Stunde gelöscht.</p>';
+    const idx=S.stunden.indexOf(s)+1;
+    return `<h2>Stunde ${idx}</h2>
+    <label>Thema<input data-f="sFeld" data-feld="titel" data-id="${id}" value="${esc(s.titel)}" placeholder="z. B. Der Haushaltsplan der Familie M."></label>
+    <label>Unterthema im Lehrplan<select data-f="sThema" data-id="${id}"><option value="">– keines (zählt nicht als Lehrplanstunde) –</option>${themaOptionen(s.themaId)}</select></label>
+    <label>Material<textarea data-f="sFeld" data-feld="material" data-id="${id}" placeholder="Arbeitsblatt, Belege, Folie …">${esc(s.material)}</textarea></label>
+    <label>Links (eine Adresse pro Zeile)<textarea data-f="sFeld" data-feld="links" data-id="${id}" placeholder="https://…">${esc(s.links)}</textarea></label>
+    ${s.links?`<div class="vorschau small">${linksHtml(s.links)}</div>`:''}
+    <label>GoodNotes-Link<input data-f="sFeld" data-feld="goodnotes" data-id="${id}" value="${esc(s.goodnotes)}" placeholder="In GoodNotes: Teilen › Link kopieren"></label>
+    ${s.goodnotes?`<a class="btn klein" style="display:inline-block;margin-top:6px;text-decoration:none" href="${esc(s.goodnotes)}" target="_blank" rel="noopener">In GoodNotes öffnen</a>`:''}
+    <label>Hausaufgabe<textarea data-f="sFeld" data-feld="ha" data-id="${id}" style="min-height:60px">${esc(s.ha)}</textarea></label>
+    <label>Tafelbild</label>
+    ${s.skizze?`<img class="thumb" src="${s.skizze}" alt="Tafelbild">`:'<p class="muted small">Noch kein Tafelbild.</p>'}
+    <div class="btns"><button class="btn" data-act="sSkizze" data-id="${id}">✎ Tafelbild ${s.skizze?'bearbeiten':'zeichnen'}</button>${s.skizze?`<button class="btn" data-act="sSkizzeWeg" data-id="${id}">Tafelbild entfernen</button>`:''}</div>
+    <p class="small muted">${KL.map(k=>{const g=gehaltenBei(id,k);return `${k}: ${g.length?'gehalten am '+g.map(t=>fmtK(t.d)).join(', '):'noch nicht gehalten'}`}).join(' · ')}</p>
+    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="sDup" data-id="${id}">Duplizieren</button><button class="btn gefahr" data-act="sWeg" data-id="${id}">Löschen</button></div>`;
+  },zurueck);
+}
+
+/* ----- Termin (Tagebuch) ----- */
+function oeffneTermin(key){
+  const t=terminVon(key);
+  modal(()=>{const e=tb(key),sid=e.stundeId||'',vor=sid?'':vorschlag(t.k,t.d),wahl=sid||vor,s=stunde(wahl);
+    return `<h2>${t.k} · ${fmtL(t.d)} · ${t.std}. Stunde</h2>
+    <div class="seg">${Object.entries(STATUS).map(([v,o])=>`<button data-act="tStatus" data-key="${key}" data-v="${v}" class="${status(t)===v?'on':''}">${o.l}</button>`).join('')}</div>
+    <label>Stunde<select data-f="tStunde" data-key="${key}"><option value="">– keine –</option>${S.stunden.map((x,i)=>`<option value="${x.id}" ${x.id===wahl?'selected':''}>${i+1}. ${esc(x.titel||'(ohne Titel)')}</option>`).join('')}</select></label>
+    ${vor&&!sid?'<p class="hint">Vorschlag: nächste Stunde nach der zuletzt gehaltenen. Wird übernommen, sobald Sie Status oder Notiz setzen.</p>':''}
+    <div class="btns"><button class="btn" data-act="tNeu" data-key="${key}">+ Neue Stunde anlegen</button>${s?`<button class="btn" data-act="tStd" data-key="${key}" data-id="${s.id}">Stunde bearbeiten</button>`:''}</div>
+    ${s?`<div class="vorschau">${thema(s.themaId)?`<div class="muted small">LB ${thema(s.themaId).lb} · ${esc(thema(s.themaId).titel)}</div>`:''}
+      ${s.material?`<div><b>Material:</b> ${esc(s.material).replace(/\n/g,'<br>')}</div>`:''}
+      ${s.links?`<div><b>Links:</b><br>${linksHtml(s.links)}</div>`:''}
+      ${s.goodnotes?`<div><a href="${esc(s.goodnotes)}" target="_blank" rel="noopener">In GoodNotes öffnen</a></div>`:''}
+      ${s.ha?`<div><b>Hausaufgabe:</b> ${esc(s.ha).replace(/\n/g,'<br>')}</div>`:''}
+      ${s.skizze?`<img class="thumb" src="${s.skizze}" alt="Tafelbild">`:''}</div>`:''}
+    <label>Notiz zum Verlauf<textarea data-f="tNotiz" data-key="${key}" placeholder="Was lief, was fehlt noch, was nächstes Mal …">${esc(e.notiz)}</textarea></label>
+    <label>Handschriftliche Notiz</label>
+    ${e.skizze?`<img class="thumb" src="${e.skizze}" alt="Notiz">`:''}
+    <div class="btns"><button class="btn" data-act="tSkizze" data-key="${key}">✎ ${e.skizze?'Bearbeiten':'Mit Pencil schreiben'}</button>${e.skizze?`<button class="btn" data-act="tSkizzeWeg" data-key="${key}">Entfernen</button>`:''}</div>
+    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button></div>`;
+  });
+}
+function uebernimmVorschlag(key){
+  if(tb(key).stundeId)return;
+  const sel=$('[data-f="tStunde"]');
+  if(sel&&sel.value)S.tagebuch[key]={...tb(key),stundeId:sel.value};
+}
+
+/* ----- Noten ----- */
+function kurzname(zeile,vorhanden){
+  zeile=zeile.replace(/\t/g,' ').replace(/^\s*\d+[\s.)]*/,'').trim();
+  if(!zeile)return null;
+  let vor,nach;
+  if(zeile.includes(',')){[nach,vor]=zeile.split(',').map(x=>x.trim())}
+  else{const p=zeile.split(/\s+/);vor=p[0];nach=p.slice(1).join(' ')}
+  vor=(vor||'').split(/\s+/)[0];nach=(nach||'').trim();
+  if(!nach)return vor;
+  for(let n=1;n<=nach.length;n++){const k=`${vor} ${nach.slice(0,n)}.`;if(!vorhanden.includes(k))return k}
+  return `${vor} ${nach}`;
+}
+function vNoten(){
+  const L=S.schueler[NK];
+  const kopf=`<div class="row" style="flex-wrap:wrap"><div class="seg">${KL.map(k=>`<button data-act="nK" data-k="${k}" class="${NK===k?'on':''}">${k}</button>`).join('')}</div>
+    <div class="seg"><button data-act="nAns" data-v="tabelle" class="${NANS==='tabelle'?'on':''}">Tabelle</button><button data-act="nAns" data-v="bild" class="${NANS==='bild'?'on':''}">Notenbild</button></div>
+    <div class="btns" style="margin:0"><button class="btn" data-act="schuelerVerw">Klassenliste</button><button class="btn" data-act="drucken">Drucken</button></div></div>`;
+  const nx=STICHTAGE.find(x=>x[0]>=heute());
+  const kopf2=kopf+(nx?`<p class="small" style="margin:10px 0 0">Nächster Stichtag: <span class="pill warn">${fmtD(nx[0])} · ${nx[1]}</span> <span class="muted">(in ${Math.round((pd(nx[0])-pd(heute()))/864e5)} Tagen)</span></p>`:'');
+  if(!L.length)return kopf2+`<div class="card" style="margin-top:12px"><p>Für ${NK} ist noch keine Klassenliste angelegt.</p><button class="btn prim" data-act="schuelerVerw">Klassenliste einfügen</button></div>`;
+  return kopf2+(NANS==='bild'?notenbild():notentabelle());
+}
+function notentabelle(){
+  const L=S.schueler[NK],kd=S.kaDaten[NK];
+  const spalten=[1,2].flatMap(h=>SLOTS.map(sl=>h+'-'+sl));
+  const colAvg=c=>mittel(L.map(s=>S.noten[s.id]?.[c]??null));
+  return `<p class="hint">Gewichtung: Kurzarbeit 1,5 · mündlich 1. Nur ganze Noten 1–6. Nach der Eingabe springt der Cursor in die nächste Zeile. Name antippen für Notizen und Einzelansicht.</p>
+  <div class="tabwrap"><table class="noten"><thead>
+  <tr><th rowspan="2">Name</th><th colspan="5" class="trenn">1. Halbjahr</th><th colspan="5" class="trenn">2. Halbjahr</th><th rowspan="2" class="trenn">Jahr Ø</th></tr>
+  <tr>${[1,2].map(h=>SLOTS.map((sl,i)=>`<th class="${i===0?'trenn':''}">${slotName(sl)}${sl.startsWith('KA')?`<br><input type="date" data-f="kaDatum" data-c="${h}-${sl}" value="${kd[h+'-'+sl]||''}">`:''}</th>`).join('')+'<th>Ø</th>').join('')}</tr></thead>
+  <tbody>${L.map(s=>`<tr><td><button class="link" data-act="schueler" data-id="${s.id}">${esc(s.name)}</button>${s.notizen?.length?' <span class="muted small">✎'+s.notizen.length+'</span>':''}</td>
+    ${[1,2].map(h=>SLOTS.map((sl,i)=>`<td class="${i===0?'trenn':''}"><input class="g" inputmode="numeric" maxlength="1" autocomplete="off" data-f="note" data-sid="${s.id}" data-c="${h}-${sl}" value="${S.noten[s.id]?.[h+'-'+sl]||''}"></td>`).join('')+`<td class="avg" data-avg="${s.id}|${h}">${f2(schnitt(s.id,h))}</td>`).join('')}
+    <td class="avg trenn" data-avg="${s.id}|0">${f2(schnitt(s.id,0))}</td></tr>`).join('')}</tbody>
+  <tfoot><tr><td>Ø Klasse</td>${[1,2].map(h=>SLOTS.map((sl,i)=>`<td class="${i===0?'trenn':''}" data-cavg="${h}-${sl}">${f2(colAvg(h+'-'+sl))}</td>`).join('')+`<td data-cavg="h${h}">${f2(mittel(L.map(s=>schnitt(s.id,h))))}</td>`).join('')}<td class="trenn" data-cavg="h0">${f2(mittel(L.map(s=>schnitt(s.id,0))))}</td></tr></tfoot>
+  </table></div>`;
+}
+function refreshSchnitte(){
+  const L=S.schueler[NK];
+  $$('[data-avg]').forEach(el=>{const[sid,h]=el.dataset.avg.split('|');el.textContent=f2(schnitt(sid,+h))});
+  $$('[data-cavg]').forEach(el=>{const c=el.dataset.cavg;el.textContent=f2(c[0]==='h'?mittel(L.map(s=>schnitt(s.id,+c[1]))):mittel(L.map(s=>S.noten[s.id]?.[c]??null)))});
+}
+function verteilung(werte){
+  const n=[1,2,3,4,5,6].map(g=>werte.filter(v=>v===g).length),max=Math.max(1,...n);
+  return `<div class="vert">${n.map(x=>`<div style="height:${x/max*100}%"><span>${x||''}</span></div>`).join('')}</div><div class="vertl">${[1,2,3,4,5,6].map(g=>`<span>${g}</span>`).join('')}</div>`;
+}
+function notenbild(){
+  const L=S.schueler[NK],kd=S.kaDaten[NK];
+  const kpis=[[1,'1. Halbjahr'],[2,'2. Halbjahr'],[0,'Schuljahr']].map(([h,l])=>`<div class="card"><div class="muted small">Klassenschnitt ${l}</div><div class="kpi">${f2(mittel(L.map(s=>schnitt(s.id,h))))}</div></div>`).join('');
+  const karten=[1,2].flatMap(h=>SLOTS.map(sl=>{const c=h+'-'+sl,w=L.map(s=>S.noten[s.id]?.[c]).filter(Boolean);
+    return `<div class="card"><div class="row"><b>${h}. HJ · ${slotName(sl)}</b><span class="muted small">${kd[c]?fmtD(kd[c]):''}</span></div>
+    <div class="small muted">${w.length} von ${L.length} Noten · Ø ${f2(mittel(w))}</div>${w.length?verteilung(w):''}</div>`})).join('');
+  return `<h2>Notenbild ${NK} · Stand ${fmtD(heute())}</h2><div class="grid2">${kpis}</div><h2>Einzelne Leistungsnachweise</h2><div class="grid2">${karten}</div>`;
+}
+function oeffneKlassenliste(){
+  modal(()=>{const L=S.schueler[NK];
+    return `<h2>Klassenliste ${NK}</h2>
+    <label>Namen einfügen (eine Zeile pro Person)<textarea id="namenfeld" placeholder="z. B. aus dem Schulmanager kopiert:&#10;Mustermann, Max&#10;Beispiel, Erika"></textarea></label>
+    <p class="hint">Formate „Nachname, Vorname“ und „Vorname Nachname“ werden erkannt und auf Vorname + Initial gekürzt. Die Namen bleiben nur auf diesem Gerät und in Ihrer Sicherung.</p>
+    <div class="btns"><button class="btn prim" data-act="schuelerHinzu">Hinzufügen</button></div>
+    <h3>${L.length} Schüler:innen</h3>
+    <div class="liste">${L.map(s=>`<div class="row"><input style="flex:1" data-f="sName" data-id="${s.id}" value="${esc(s.name)}"><button class="icon" data-act="schuelerWeg" data-id="${s.id}" aria-label="entfernen">🗑</button></div>`).join('')}</div>
+    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button></div>`});
+}
+function oeffneSchueler(id){
+  modal(()=>{const s=S.schueler[NK].find(x=>x.id===id);if(!s)return '';
+    const n=S.noten[id]||{};
+    return `<h2>${esc(s.name)} · ${NK}</h2>
+    <table><thead><tr><th></th>${SLOTS.map(sl=>`<th>${slotName(sl)}</th>`).join('')}<th>Ø</th><th>Stand</th></tr></thead>
+    <tbody>${[1,2].map(h=>`<tr><td>${h}. HJ</td>${SLOTS.map(sl=>`<td>${n[h+'-'+sl]||'–'}</td>`).join('')}<td><b>${f2(schnitt(id,h))}</b></td><td class="small">${anzahl(id,h)}</td></tr>`).join('')}
+    <tr><td colspan="5"><b>Schuljahr</b></td><td><b>${f2(schnitt(id,0))}</b></td><td></td></tr></tbody></table>
+    <h3>Kurznotizen</h3>
+    <div class="row"><input id="notizfeld" style="flex:1" placeholder="z. B. HA vergessen, gute Mitarbeit …"><button class="btn prim" data-act="notizHinzu" data-id="${id}">+</button></div>
+    <div class="liste" style="margin-top:8px">${(s.notizen||[]).slice().reverse().map(x=>`<div class="row small"><span><span class="muted">${fmtD(x.d)}</span> ${esc(x.t)}</span><button class="icon" data-act="notizWeg" data-id="${id}" data-nid="${x.id}" aria-label="löschen">🗑</button></div>`).join('')||'<p class="muted small">Keine Notizen.</p>'}</div>
+    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="drucken" data-id="${id}">Notenbild drucken</button></div>`});
+}
+function drucken(sid){
+  const L=S.schueler[NK],kd=S.kaDaten[NK];
+  const kopfzeile=`<tr><th>Name</th>${[1,2].map(h=>SLOTS.map(sl=>`<th>${h}. HJ ${slotName(sl)}${kd[h+'-'+sl]?'<br>'+fmtD(kd[h+'-'+sl]):''}</th>`).join('')+`<th>Ø ${h}. HJ</th>`).join('')}<th>Ø Jahr</th></tr>`;
+  const zeile=s=>`<tr><td>${esc(s.name)}</td>${[1,2].map(h=>SLOTS.map(sl=>`<td>${S.noten[s.id]?.[h+'-'+sl]||''}</td>`).join('')+`<td><b>${f2(schnitt(s.id,h))}</b></td>`).join('')}<td><b>${f2(schnitt(s.id,0))}</b></td></tr>`;
+  const liste=sid?L.filter(s=>s.id===sid):L;
+  $('#druck').innerHTML=`<h1>BwR ${NK} · Notenbild${sid?' · '+esc(liste[0]?.name):''}</h1><p>Stand ${fmtD(heute())} · Gewichtung: Kurzarbeit 1,5, mündlich 1. Der Schnitt dient der Information; maßgeblich ist der Schulmanager.</p>
+  <table>${kopfzeile}${liste.map(zeile).join('')}</table>
+  ${sid?'':`<p>Klassenschnitt Schuljahr: <b>${f2(mittel(L.map(s=>schnitt(s.id,0))))}</b></p>`}`;
+  window.print();
+}
+
+/* ----- Sichern ----- */
+function vSichern(){
+  const l=S.letzteSicherung;
+  return `${sicherungsBanner()}
+  <div class="card"><h3 style="margin-top:0">Sicherung erstellen</h3>
+    <p>Letzte Sicherung: <b>${l?new Date(l).toLocaleString('de-DE'):'noch nie'}</b></p>
+    <p class="small">Im Teilen-Menü <b>„In Dateien sichern“</b> wählen, dann <b>ByCS Drive › persönlich › unterricht-sicherung</b>. Jede Sicherung trägt Datum und Uhrzeit im Namen.</p>
+    <button class="btn prim" data-act="sichern">Sicherung erstellen</button></div>
+  <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Sicherung laden</h3>
+    <p class="small">Ersetzt alle Daten auf diesem Gerät durch den Stand der gewählten Datei (z. B. zum Umzug auf ein anderes Gerät).</p>
+    <button class="btn" data-act="import">Datei wählen …</button></div>
+  <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Speicher</h3><p class="small" id="speicherinfo">…</p>
+    <p class="hint">Damit iPadOS die Daten nicht löscht: App über Safari › Teilen › „Zum Home-Bildschirm“ ablegen und von dort öffnen.</p></div>
+  <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Zurücksetzen</h3><p class="small">Löscht alle Daten auf diesem Gerät. Vorher sichern!</p><button class="btn gefahr" data-act="reset">Alle Daten löschen</button></div>`;
+}
+async function speicherInfo(){
+  const el=$('#speicherinfo');if(!el)return;
+  let t=[];
+  try{const p=await navigator.storage?.persisted?.();t.push(p?'Dauerhafter Speicher: aktiv':'Dauerhafter Speicher: nicht bestätigt')}catch{}
+  try{const e=await navigator.storage?.estimate?.();if(e)t.push(`belegt ca. ${(e.usage/1048576).toFixed(1)} MB`)}catch{}
+  t.push(`${S.stunden.length} Stunden · ${Object.keys(S.tagebuch).length} Tagebucheinträge · ${KL.map(k=>S.schueler[k].length+' in '+k).join(', ')}`);
+  el.textContent=t.join(' · ');
+}
+async function sichern(){
+  const n=new Date(),hm=String(n.getHours()).padStart(2,'0')+String(n.getMinutes()).padStart(2,'0');
+  const name=`unterricht-2026_sicherung_${heute()}_${hm}.json`;
+  const text=JSON.stringify({app:'unterricht-2026',exportiert:n.toISOString(),stand:S});
+  const blob=new Blob([text],{type:'application/json'});
+  const ok=()=>{S.letzteSicherung=new Date().toISOString();save();render();speicherInfo();toast('Sicherung erstellt')};
+  try{
+    const file=new File([blob],name,{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});ok();return}
+  }catch(e){if(e.name==='AbortError')return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);ok();
+}
+$('#importdatei').addEventListener('change',async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{
+    const o=JSON.parse(await f.text());
+    if(o.app!=='unterricht-2026'||o.stand?.v!==1)throw new Error('Keine Sicherung dieser App.');
+    if(!confirm(`Sicherung vom ${new Date(o.exportiert).toLocaleString('de-DE')} laden? Alle aktuellen Daten auf diesem Gerät werden ersetzt.`))return;
+    S=o.stand;await schreiben();render();toast('Sicherung geladen');
+  }catch(err){alert('Laden fehlgeschlagen: '+err.message)}
+});
+
+/* ---------- Zeichenfläche (Apple Pencil) ---------- */
+function skizze(bild,onSave){
+  const W=1200,H=750;
+  const ov=document.createElement('div');ov.className='skizze';
+  const farben=['#1c2430','#1f5f8b','#c0392b','#2e7d4f'];
+  ov.innerHTML=`<div class="sk-bar">
+    ${farben.map((f,i)=>`<button class="farbe ${i?'':'on'}" data-farbe="${f}" style="background:${f}" aria-label="Farbe"></button>`).join('')}
+    <button class="btn klein" data-b="2">dünn</button><button class="btn klein on" data-b="4">mittel</button><button class="btn klein" data-b="8">dick</button>
+    <button class="btn klein" data-t="radier">Radierer</button><button class="btn klein" data-t="undo">↶ Zurück</button><button class="btn klein" data-t="leeren">Leeren</button>
+    <label class="small" style="margin:0 0 0 6px;display:flex;align-items:center;gap:6px"><input type="checkbox" data-t="nurstift" checked> nur Pencil</label>
+    <span class="sk-sp"></span><button class="btn" data-t="abbruch">Abbrechen</button><button class="btn prim" data-t="ok">Speichern</button></div>
+    <div class="sk-wrap"><canvas width="${W}" height="${H}"></canvas></div>`;
+  document.body.appendChild(ov);
+  const cv=$('canvas',ov),ctx=cv.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  if(bild){const im=new Image();im.onload=()=>ctx.drawImage(im,0,0,W,H);im.src=bild}
+  let farbe=farben[0],breite=4,radier=false,nurStift=true,zeichnet=false,last=null;const undo=[];
+  const pos=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]};
+  cv.addEventListener('pointerdown',e=>{
+    if(nurStift&&e.pointerType==='touch')return;
+    e.preventDefault();cv.setPointerCapture(e.pointerId);
+    undo.push(ctx.getImageData(0,0,W,H));if(undo.length>10)undo.shift();
+    zeichnet=true;last=pos(e);
+  });
+  cv.addEventListener('pointermove',e=>{
+    if(!zeichnet)return;e.preventDefault();
+    for(const ev of (e.getCoalescedEvents?.()||[e])){
+      const p=pos(ev),druck=ev.pointerType==='pen'&&ev.pressure?0.4+ev.pressure*1.2:1;
+      ctx.lineCap='round';ctx.lineJoin='round';
+      ctx.strokeStyle=radier?'#fff':farbe;ctx.lineWidth=radier?30:breite*druck;
+      ctx.beginPath();ctx.moveTo(...last);ctx.lineTo(...p);ctx.stroke();last=p;
+    }
+  });
+  const ende=()=>{zeichnet=false};
+  cv.addEventListener('pointerup',ende);cv.addEventListener('pointercancel',ende);
+  cv.addEventListener('touchstart',e=>{if(!nurStift)e.preventDefault()},{passive:false});
+  ov.addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;
+    if(b.dataset.farbe){farbe=b.dataset.farbe;radier=false;$$('.farbe',ov).forEach(x=>x.classList.toggle('on',x===b));$('[data-t=radier]',ov).classList.remove('on')}
+    else if(b.dataset.b){breite=+b.dataset.b;$$('[data-b]',ov).forEach(x=>x.classList.toggle('on',x===b))}
+    else if(b.dataset.t==='radier'){radier=!radier;b.classList.toggle('on',radier)}
+    else if(b.dataset.t==='undo'){const u=undo.pop();if(u)ctx.putImageData(u,0,0)}
+    else if(b.dataset.t==='leeren'){undo.push(ctx.getImageData(0,0,W,H));ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H)}
+    else if(b.dataset.t==='abbruch'){ov.remove()}
+    else if(b.dataset.t==='ok'){onSave(cv.toDataURL('image/png'));ov.remove()}
+  });
+  $('[data-t=nurstift]',ov).addEventListener('change',e=>{nurStift=e.target.checked});
+}
+
+/* ---------- Aktionen ---------- */
+const ACT={
+  tab:d=>{TAB=d.tab;try{localStorage.setItem('u26tab',TAB)}catch{};render();window.scrollTo(0,0);if(TAB==='sichern')speicherInfo()},
+  zu:()=>zu(),
+  termin:d=>oeffneTermin(d.key),
+  tStatus:d=>{uebernimmVorschlag(d.key);setTb(d.key,{status:d.v});refreshModal()},
+  tNeu:d=>{const s=neueStunde();setTb(d.key,{stundeId:s.id});oeffneStunde(s.id,()=>oeffneTermin(d.key))},
+  tStd:d=>oeffneStunde(d.id,()=>oeffneTermin(d.key)),
+  tSkizze:d=>skizze(tb(d.key).skizze,b=>{uebernimmVorschlag(d.key);setTb(d.key,{skizze:b});refreshModal()}),
+  tSkizzeWeg:d=>{if(confirm('Handschriftliche Notiz entfernen?')){setTb(d.key,{skizze:null});refreshModal()}},
+  wo:d=>{WOFF=d.d==='0'?0:WOFF+(+d.d);render()},
+  stunde:d=>oeffneStunde(d.id),
+  sNeu:()=>{const s=neueStunde();oeffneStunde(s.id)},
+  sHoch:d=>verschiebe(d.id,-1),
+  sRunter:d=>verschiebe(d.id,1),
+  sDup:d=>{const s=stunde(d.id),i=S.stunden.indexOf(s),n={...s,id:uid(),titel:s.titel+' (Kopie)'};S.stunden.splice(i+1,0,n);save();oeffneStunde(n.id,modalZurueck)},
+  sWeg:d=>{const s=stunde(d.id),n=Object.values(S.tagebuch).filter(e=>e.stundeId===d.id).length;
+    if(!confirm(`Stunde „${s.titel||'ohne Titel'}“ löschen?${n?` Sie ist ${n} Tagebucheintrag/-einträgen zugeordnet; diese verlieren die Zuordnung.`:''}`))return;
+    S.stunden=S.stunden.filter(x=>x.id!==d.id);for(const e of Object.values(S.tagebuch))if(e.stundeId===d.id)e.stundeId=null;save();zu()},
+  sSkizze:d=>skizze(stunde(d.id).skizze,b=>{stunde(d.id).skizze=b;save();refreshModal()}),
+  sSkizzeWeg:d=>{if(confirm('Tafelbild entfernen?')){stunde(d.id).skizze=null;save();refreshModal()}},
+  thNeu:d=>{const nr=+d.lb,i=S.themen.map(t=>t.lb).lastIndexOf(nr);S.themen.splice(i+1,0,{id:uid(),lb:nr,titel:'Neues Unterthema',std:1});save();render()},
+  thWeg:d=>{const t=thema(d.id),n=S.stunden.filter(s=>s.themaId===d.id).length;
+    if(!confirm(`Unterthema „${t.titel}“ löschen?${n?` ${n} Stunde(n) verlieren die Zuordnung.`:''}`))return;
+    S.themen=S.themen.filter(x=>x.id!==d.id);S.stunden.forEach(s=>{if(s.themaId===d.id)s.themaId=null});save();render()},
+  nK:d=>{NK=d.k;render()},
+  nAns:d=>{NANS=d.v;render()},
+  schuelerVerw:()=>oeffneKlassenliste(),
+  schuelerHinzu:()=>{const L=S.schueler[NK];let n=0;
+    for(const z of $('#namenfeld').value.split('\n')){const k=kurzname(z,L.map(s=>s.name));if(k){L.push({id:uid(),name:k,notizen:[]});n++}}
+    L.sort((a,b)=>a.name.localeCompare(b.name,'de'));save();refreshModal();toast(`${n} hinzugefügt`)},
+  schuelerWeg:d=>{const L=S.schueler[NK],s=L.find(x=>x.id===d.id);if(!confirm(`${s.name} mit allen Noten und Notizen entfernen?`))return;
+    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];save();refreshModal()},
+  schueler:d=>oeffneSchueler(d.id),
+  notizHinzu:d=>{const t=$('#notizfeld').value.trim();if(!t)return;const s=S.schueler[NK].find(x=>x.id===d.id);(s.notizen??=[]).push({id:uid(),d:heute(),t});save();refreshModal()},
+  notizWeg:d=>{const s=S.schueler[NK].find(x=>x.id===d.id);s.notizen=s.notizen.filter(x=>x.id!==d.nid);save();refreshModal()},
+  drucken:d=>drucken(d.id),
+  sichern:()=>sichern(),
+  import:()=>$('#importdatei').click(),
+  reset:()=>{if(confirm('Wirklich ALLE Daten auf diesem Gerät löschen?')&&confirm('Sicher? Das kann nicht rückgängig gemacht werden (außer über eine Sicherung).')){S=neuerStand();schreiben();render();toast('Zurückgesetzt')}},
+};
+function verschiebe(id,r){const i=S.stunden.findIndex(s=>s.id===id),j=i+r;if(j<0||j>=S.stunden.length)return;[S.stunden[i],S.stunden[j]]=[S.stunden[j],S.stunden[i]];save();render()}
+document.addEventListener('click',e=>{
+  if(e.target.id==='modal'){zu();return}
+  const b=e.target.closest('[data-act]');if(!b||b.closest('.skizze'))return;
+  ACT[b.dataset.act]?.(b.dataset,b,e);
+});
+/* Eingaben: IN = bei jeder Eingabe, CH = bei Änderung */
+const IN={
+  tNotiz:el=>{uebernimmVorschlag(el.dataset.key);setTb(el.dataset.key,{notiz:el.value})},
+  sFeld:el=>{stunde(el.dataset.id)[el.dataset.feld]=el.value;save()},
+  thTitel:el=>{thema(el.dataset.id).titel=el.value;save()},
+  sName:el=>{S.schueler[NK].find(x=>x.id===el.dataset.id).name=el.value;save()},
+  note:el=>{
+    const v=el.value.replace(/[^1-6]/g,'').slice(-1);el.value=v;
+    const n=(S.noten[el.dataset.sid]??={});if(v)n[el.dataset.c]=+v;else delete n[el.dataset.c];
+    save();refreshSchnitte();
+    if(v){const alle=$$(`input.g[data-c="${el.dataset.c}"]`),i=alle.indexOf(el);if(alle[i+1]){alle[i+1].focus();alle[i+1].select()}else el.blur()}
+  },
+};
+const CH={
+  tStunde:el=>{setTb(el.dataset.key,{stundeId:el.value||null});refreshModal()},
+  sThema:el=>{stunde(el.dataset.id).themaId=el.value||null;save()},
+  thStd:el=>{thema(el.dataset.id).std=Math.max(0,+el.value||0);save();render()},
+  thTitel:()=>{},
+  puffer:el=>{S.puffer=Math.max(0,+el.value||0);save();render()},
+  sFilter:el=>{SFILTER=el.value;render()},
+  kaDatum:el=>{S.kaDaten[NK][el.dataset.c]=el.value;save()},
+};
+document.addEventListener('input',e=>{const el=e.target.closest('[data-f]');if(el)IN[el.dataset.f]?.(el,e)});
+document.addEventListener('change',e=>{const el=e.target.closest('[data-f]');if(el)CH[el.dataset.f]?.(el,e)});
+
+/* ---------- Start ---------- */
+(async()=>{
+  S=await laden();
+  if(!S||S.v!==1){S=neuerStand();await schreiben()}
+  try{await navigator.storage?.persist?.()}catch{}
+  render();
+  if(TAB==='sichern')speicherInfo();
+  if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
