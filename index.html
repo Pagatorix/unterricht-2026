@@ -181,6 +181,8 @@ td:first-child,th:first-child{text-align:left}
 <div id="toast"></div>
 <div id="druck"></div>
 <input type="file" id="importdatei" accept=".json,application/json,text/plain" hidden>
+<script src="jspdf.umd.min.js"></script>
+<script src="jspdf.plugin.autotable.min.js"></script>
 <script>
 'use strict';
 /* ---------- Hilfen ---------- */
@@ -284,7 +286,7 @@ function neuerStand(){return{
   schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
-const APP_VERSION='15';
+const APP_VERSION='16';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -531,7 +533,7 @@ function vNoten(){
   const L=S.schueler[NK];
   const kopf=(S.alleReiter?'':sicherungsBanner())+`<div class="row" style="flex-wrap:wrap"><div class="seg">${KL.map(k=>`<button data-act="nK" data-k="${k}" class="${NK===k?'on':''}">${k}</button>`).join('')}</div>
     <div class="seg"><button data-act="nAns" data-v="tabelle" class="${NANS==='tabelle'?'on':''}">Tabelle</button><button data-act="nAns" data-v="bild" class="${NANS==='bild'?'on':''}">Notenbild</button></div>
-    <div class="btns" style="margin:0"><button class="btn" data-act="schuelerVerw">Klassenliste</button><button class="btn" data-act="drucken">Drucken</button><label class="bemschalter"><input type="checkbox" data-f="druckBem" ${S.druckBem!==false?'checked':''}> mit Bemerkungen</label></div></div>`;
+    <div class="btns" style="margin:0"><button class="btn" data-act="schuelerVerw">Klassenliste</button><button class="btn" data-act="drucken">PDF</button><label class="bemschalter"><input type="checkbox" data-f="druckBem" ${S.druckBem!==false?'checked':''}> mit Bemerkungen</label></div></div>`;
   const nx=STICHTAGE.find(x=>x[0]>=heute());
   const kopf2=kopf+(nx?`<p class="small" style="margin:10px 0 0">Nächster Stichtag: <span class="pill warn">${fmtD(nx[0])} · ${nx[1]}</span> <span class="muted">(in ${Math.round((pd(nx[0])-pd(heute()))/864e5)} Tagen)</span></p>`:'');
   if(!L.length)return kopf2+`<div class="card" style="margin-top:12px"><p>Für ${NK} ist noch keine Klassenliste angelegt.</p><button class="btn prim" data-act="schuelerVerw">Klassenliste einfügen</button></div>`;
@@ -598,7 +600,7 @@ function oeffneSchueler(id){
       <label>Notiz<textarea id="notizfeld" placeholder="z. B. HA vergessen, gute Mitarbeit, Gespräch geführt …">${ed?esc(ed.t):''}</textarea></label>
       <div class="btns"><button class="btn prim" data-act="notizSpeichern" data-id="${id}">${ed?'Änderung speichern':'Notiz speichern'}</button>${ed?`<button class="btn" data-act="notizAbbruch">Abbrechen</button>`:''}</div></div>`})()}
     <div class="liste" style="margin-top:10px">${(s.notizen||[]).slice().sort((a,b)=>b.d.localeCompare(a.d)).map(x=>`<div class="card notiz"><div class="row"><b class="small">${fmtL(x.d)}</b><span><button class="btn klein" data-act="notizEdit" data-nid="${x.id}">Bearbeiten</button> <button class="icon" data-act="notizWeg" data-id="${id}" data-nid="${x.id}" aria-label="löschen">🗑</button></span></div><div style="white-space:pre-wrap;margin-top:4px">${esc(x.t)}</div></div>`).join('')||'<p class="muted small">Noch keine Notizen.</p>'}</div>
-    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="drucken" data-id="${id}">Notenbild drucken</button><label class="bemschalter"><input type="checkbox" data-f="druckBem" ${S.druckBem!==false?'checked':''}> mit Bemerkungen</label></div>`});
+    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="drucken" data-id="${id}">Notenbild als PDF</button><label class="bemschalter"><input type="checkbox" data-f="druckBem" ${S.druckBem!==false?'checked':''}> mit Bemerkungen</label></div>`});
 }
 /* ----- Sitzplan: 4 Reihen × 8 Tische, Durchgang in der Mitte ----- */
 const REIHEN=4, TISCHE=8;
@@ -621,7 +623,7 @@ function vSitzplan(){
   const L=S.schueler[NK],P=sp().plaetze,frei=L.filter(s=>!platzVon(s.id));
   const selName=SPSEL&&L.find(s=>s.id===SPSEL)?.name;
   return `<div class="row" style="flex-wrap:wrap">${klassenSeg()}
-    <div class="btns" style="margin:0"><button class="btn ${SPUMSETZEN?'prim':''}" data-act="spModus">${SPUMSETZEN?'✓ Umsetzen aktiv':'Umsetzen'}</button><button class="btn" data-act="spZufall">Zufällig verteilen</button><button class="btn" data-act="spLeeren">Alle entfernen</button><button class="btn prim" data-act="spDruck">PDF / Drucken</button></div></div>
+    <div class="btns" style="margin:0"><button class="btn ${SPUMSETZEN?'prim':''}" data-act="spModus">${SPUMSETZEN?'✓ Umsetzen aktiv':'Umsetzen'}</button><button class="btn" data-act="spZufall">Zufällig verteilen</button><button class="btn" data-act="spLeeren">Alle entfernen</button><button class="btn prim" data-act="spDruck">PDF</button></div></div>
   ${L.length?'':`<div class="card warn" style="margin-top:12px">Für ${NK} gibt es noch keine Klassenliste. Namen unter <b>Noten › Klassenliste</b> einfügen.</div>`}
   <p class="hint">${selName?`<b>${esc(selName)}</b> ausgewählt – jetzt einen Platz antippen (belegter Platz = Tausch).${platzVon(SPSEL)?' <button class="btn klein" data-act="spRaus">Vom Platz nehmen</button>':''} <button class="btn klein" data-act="spAbwahl">Abbrechen</button>`
     :SPUMSETZEN?'Umsetzen: belegten Tisch antippen, dann den Zieltisch (belegt = Tausch). Zum Beenden „Umsetzen“ erneut tippen.'
@@ -632,10 +634,22 @@ function vSitzplan(){
   <p class="hint">${Object.keys(P).length} von ${REIHEN*TISCHE} Plätzen belegt.</p>`;
 }
 function druckeSitzplan(){
-  $('#druck').innerHTML=`<h1>Sitzplan ${NK}</h1><p>Stand ${fmtD(heute())} · Blick vom Pult in die Klasse</p>${sitzGrid(true)}`;
-  window.print();
+  const d=neuesPdf(true),W=d.internal.pageSize.getWidth();
+  let y=pdfKopf(d,`Sitzplan ${NK}`,`Stand ${fmtD(heute())} · Blick vom Pult in die Klasse`)+4;
+  const P=sp().plaetze,L=S.schueler[NK],rand=14,gap=3,gang=12,bw=(W-2*rand-gang-(TISCHE-2)*gap)/TISCHE,bh=27,rgap=10;
+  const rs=[...Array(REIHEN).keys()].reverse(),cs=[...Array(TISCHE).keys()].reverse(); /* Lehrersicht: erste Reihe unten */
+  rs.forEach((r,ri)=>cs.forEach((c,ci)=>{
+    const x=rand+ci*(bw+gap)+(ci>=TISCHE/2?gang-gap:0),yy=y+ri*(bh+rgap),id=P[r+'-'+c],name=id&&L.find(s=>s.id===id)?.name;
+    if(name){d.setDrawColor(40);d.setLineWidth(0.5);d.setLineDashPattern([],0)}else{d.setDrawColor(170);d.setLineWidth(0.3);d.setLineDashPattern([1.5,1.5],0)}
+    d.roundedRect(x,yy,bw,bh,2,2);
+    if(name){d.setFont('helvetica','bold');d.setFontSize(11);const z=d.splitTextToSize(pdfTxt(name),bw-3);d.text(z,x+bw/2,yy+bh/2-(z.length-1)*2.2,{align:'center',baseline:'middle'})}
+  }));
+  d.setLineDashPattern([],0);
+  const ty=y+REIHEN*(bh+rgap);
+  d.setFillColor(235);d.setDrawColor(40);d.setLineWidth(0.5);d.rect(rand,ty,W-2*rand,10,'FD');
+  d.setFont('helvetica','bold');d.setFontSize(11);d.text('Tafel / Pult',W/2,ty+5,{align:'center',baseline:'middle'});
+  pdfAusgeben(d,`Sitzplan_${NK}_${heute()}.pdf`);
 }
-
 /* ----- Listen (Abhak- und Eintragungslisten) ----- */
 const TYPEN={haken:'Häkchen',text:'Text',betrag:'Betrag (€)'};
 let LID=null, LOFFEN=false;
@@ -677,7 +691,7 @@ function listeDetail(){
     return `<input class="ltext" data-f="lText" data-sid="${s.id}" data-sp="${sp.id}" value="${esc(v??'')}">`;
   };
   return `<div class="row" style="flex-wrap:wrap"><button class="btn" data-act="lZurueck">‹ Alle Listen ${NK}</button>
-    <div class="btns" style="margin:0"><button class="btn" data-act="lSpalteNeu">+ Spalte</button><button class="btn" data-act="lDruck">Drucken</button><button class="btn gefahr" data-act="lWeg">Liste löschen</button></div></div>
+    <div class="btns" style="margin:0"><button class="btn" data-act="lSpalteNeu">+ Spalte</button><button class="btn" data-act="lDruck">PDF</button><button class="btn gefahr" data-act="lWeg">Liste löschen</button></div></div>
   <div class="card" style="margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
     <label style="flex:1;min-width:220px;margin:0">Titel<input data-f="lTitel" value="${esc(l.titel)}"></label>
     <label style="margin:0">Datum<input type="date" data-f="lDatum" value="${l.datum||''}"></label>
@@ -709,33 +723,61 @@ function oeffneSpalte(spId){
   <button class="btn" data-act="zu">Abbrechen</button></div>`);
 }
 function druckeListe(){
-  const l=liste(),L=S.schueler[NK];
-  const zeig=(sp,v)=>sp.typ==='haken'?(v?'✓':''):sp.typ==='betrag'&&v!=null&&v!==''?euro(+v):esc(v??'');
-  $('#druck').innerHTML=`<h1>${esc(l.titel)} · ${NK}</h1><p>${l.datum?fmtD(l.datum):''}</p>
-  <table><tr><th>Name</th>${l.spalten.map(sp=>`<th>${esc(sp.name)}</th>`).join('')}</tr>
-  ${L.map(s=>`<tr><td>${esc(s.name)}</td>${l.spalten.map(sp=>`<td style="min-width:60px">${zeig(sp,wert(l,s.id,sp.id))}</td>`).join('')}</tr>`).join('')}
-  <tr><td><b>Stand</b></td>${l.spalten.map(sp=>`<td>${fuss(l,sp)}</td>`).join('')}</tr></table>`;
-  window.print();
+  const l=liste(),L=S.schueler[NK],d=neuesPdf(l.spalten.length>4);
+  const zeig=(sp,v)=>sp.typ==='haken'?(v?'x':''):sp.typ==='betrag'&&v!=null&&v!==''?euro(+v):(v??'');
+  const y=pdfKopf(d,`${l.titel} · ${NK}`,l.datum?fmtD(l.datum):'');
+  d.autoTable({...TAB_STIL,startY:y,head:[['Name',...l.spalten.map(sp=>sp.name)].map(pdfTxt)],
+    body:[...L.map(s=>[s.name,...l.spalten.map(sp=>zeig(sp,wert(l,s.id,sp.id)))].map(pdfTxt)),['Stand',...l.spalten.map(sp=>fuss(l,sp))].map(pdfTxt)],
+    columnStyles:{0:{cellWidth:36}},
+    didParseCell:c=>{if(c.section!=='body')return;if(c.row.index===L.length)c.cell.styles.fontStyle='bold';const sp=l.spalten[c.column.index-1];if(sp&&sp.typ!=='text')c.cell.styles.halign=sp.typ==='betrag'?'right':'center'}});
+  pdfSeitenzahlen(d);
+  pdfAusgeben(d,`${l.titel.replace(/[^A-Za-z0-9ÄÖÜäöüß-]+/g,'_')}_${NK}.pdf`);
 }
-
-function bemerkungen(liste){
-  const mit=liste.filter(s=>s.notizen?.length);
-  if(!mit.length)return '<h2>Bemerkungen</h2><p>Keine Bemerkungen.</p>';
-  return `<h2>Bemerkungen</h2>${mit.map(s=>`<div class="bem">${liste.length>1?`<h3>${esc(s.name)}</h3>`:''}
-    <table>${s.notizen.slice().sort((a,b)=>a.d.localeCompare(b.d)).map(x=>`<tr><td style="white-space:nowrap;vertical-align:top">${fmtD(x.d)}</td><td style="white-space:pre-wrap;text-align:left">${esc(x.t)}</td></tr>`).join('')}</table></div>`).join('')}`;
+/* ----- PDF-Export (jsPDF, offline mitgeliefert) ----- */
+const pdfTxt=t=>String(t??'').replace(/[−‐‑‒—]/g,'-').replace(/✓/g,'x').replace(/Σ/g,'Summe').replace(/­/g,'');
+function neuesPdf(quer){const d=new window.jspdf.jsPDF({orientation:quer?'landscape':'portrait',unit:'mm',format:'a4'});d.setFont('helvetica');return d}
+function pdfKopf(d,titel,unter){
+  d.setFont('helvetica','bold');d.setFontSize(15);d.text(pdfTxt(titel),14,16);
+  d.setFont('helvetica','normal');d.setFontSize(9.5);d.setTextColor(90);
+  d.text(d.splitTextToSize(pdfTxt(unter),d.internal.pageSize.getWidth()-28),14,22);d.setTextColor(0);return 28;
+}
+function pdfSeitenzahlen(d){const n=d.getNumberOfPages();for(let i=1;i<=n;i++){d.setPage(i);d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(120);d.text(`Seite ${i} von ${n}`,d.internal.pageSize.getWidth()-14,d.internal.pageSize.getHeight()-8,{align:'right'})}d.setTextColor(0)}
+const TAB_STIL={theme:'grid',margin:{left:14,right:14},styles:{font:'helvetica',fontSize:9,cellPadding:1.6,lineColor:[170,170,170],lineWidth:0.2,textColor:0},headStyles:{fillColor:[31,95,139],textColor:255,fontStyle:'bold'}};
+async function pdfAusgeben(d,name){
+  const blob=d.output('blob'),file=new File([blob],name,{type:'application/pdf'});
+  if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){
+    try{await navigator.share({files:[file]});return}catch(e){if(e.name==='AbortError')return}
+  }
+  const url=URL.createObjectURL(blob);
+  modal(()=>`<h2>PDF erstellt</h2><p class="small">${esc(name)}</p>
+    <div class="btns"><a class="btn prim" style="text-decoration:none" href="${url}" download="${esc(name)}">PDF speichern</a><a class="btn" style="text-decoration:none" href="${url}" target="_blank" rel="noopener">PDF öffnen</a></div>
+    <p class="hint">Im geöffneten PDF über das Teilen-Symbol „In Dateien sichern“ oder „Drucken“ wählen.</p>
+    <div class="btns"><button class="btn" data-act="zu">Schließen</button></div>`);
 }
 function drucken(sid){
-  const L=S.schueler[NK],kd=S.kaDaten[NK];
-  const kopfzeile=`<tr><th>Name</th>${[1,2].map(h=>SLOTS.map(sl=>`<th>${h}. HJ ${slotName(sl)}${kd[h+'-'+sl]?'<br>'+fmtD(kd[h+'-'+sl]):''}</th>`).join('')+`<th>Ø ${h}. HJ</th>`).join('')}<th>Ø Jahr</th><th>Unterrichts­beiträge</th></tr>`;
-  const zeile=s=>`<tr><td>${esc(s.name)}</td>${[1,2].map(h=>SLOTS.map(sl=>`<td>${S.noten[s.id]?.[h+'-'+sl]||''}${mDatum(s.id,h+'-'+sl)?`<br><small>${fmtD(mDatum(s.id,h+'-'+sl)).slice(0,6)}</small>`:''}</td>`).join('')+`<td><b>${f2(schnitt(s.id,h))}</b></td>`).join('')}<td><b>${f2(schnitt(s.id,0))}</b></td><td style="white-space:nowrap">${beitr(s.id).map(v=>v==='-'?'−':v||'·').join(' ')}</td></tr>`;
-  const liste=sid?L.filter(s=>s.id===sid):L;
-  $('#druck').innerHTML=`<h1>BwR ${NK} · Notenbild${sid?' · '+esc(liste[0]?.name):''}</h1><p>Stand ${fmtD(heute())} · Gewichtung: Kurzarbeit 1,5, mündlich 1. Der Schnitt dient der Information; maßgeblich ist der Schulmanager.</p>
-  <table>${kopfzeile}${liste.map(zeile).join('')}</table>
-  ${sid?'':`<p>Klassenschnitt Schuljahr: <b>${f2(mittel(L.map(s=>schnitt(s.id,0))))}</b></p>`}
-  ${S.druckBem!==false?bemerkungen(liste):''}`;
-  window.print();
+  const L=S.schueler[NK],kd=S.kaDaten[NK],liste=sid?L.filter(s=>s.id===sid):L;
+  if(!liste.length){toast('Keine Schüler:innen');return}
+  const d=neuesPdf(true);
+  let y=pdfKopf(d,`BwR ${NK} · Notenbild${sid?' · '+liste[0].name:''}`,`Stand ${fmtD(heute())} · Gewichtung: Kurzarbeit 1,5, mündlich 1. Der Schnitt dient der Information; maßgeblich ist der Schulmanager.`);
+  const head=[[{content:'Name',rowSpan:2},{content:'1. Halbjahr',colSpan:5},{content:'2. Halbjahr',colSpan:5},{content:'Ø Jahr',rowSpan:2},{content:'Unterrichts-\nbeiträge',rowSpan:2}],
+    [1,2].flatMap(h=>[...SLOTS.map(sl=>slotName(sl)+(kd[h+'-'+sl]?'\n'+fmtD(kd[h+'-'+sl]).slice(0,6):'')),'Ø'])];
+  const zelle=(sid,c)=>{const v=S.noten[sid]?.[c],md=mDatum(sid,c);return v?(md?`${v}\n${fmtD(md).slice(0,6)}`:String(v)):''};
+  const body=liste.map(s=>[s.name,...[1,2].flatMap(h=>[...SLOTS.map(sl=>zelle(s.id,h+'-'+sl)),f2(schnitt(s.id,h))]),f2(schnitt(s.id,0)),beitr(s.id).map(v=>v||'·').join(' ')]);
+  if(!sid)body.push(['Ø Klasse',...[1,2].flatMap(h=>[...SLOTS.map(sl=>f2(mittel(L.map(s=>S.noten[s.id]?.[h+'-'+sl]??null)))),f2(mittel(L.map(s=>schnitt(s.id,h))))]),f2(mittel(L.map(s=>schnitt(s.id,0)))),'']);
+  d.autoTable({...TAB_STIL,startY:y,head,body:body.map(r=>r.map(pdfTxt)),
+    headStyles:{...TAB_STIL.headStyles,halign:'center',valign:'middle'},bodyStyles:{halign:'center',valign:'middle'},columnStyles:{0:{halign:'left',cellWidth:34}},
+    didParseCell:c=>{if(c.section!=='body')return;if([5,10,11].includes(c.column.index)||(!sid&&c.row.index===liste.length))c.cell.styles.fontStyle='bold'}});
+  if(S.druckBem!==false){
+    y=d.lastAutoTable.finalY+10;
+    if(y>d.internal.pageSize.getHeight()-30){d.addPage();y=18}
+    d.setFont('helvetica','bold');d.setFontSize(12);d.text('Bemerkungen',14,y);
+    const zeilen=liste.filter(s=>s.notizen?.length).flatMap(s=>s.notizen.slice().sort((a,b)=>a.d.localeCompare(b.d)).map(x=>[s.name,fmtD(x.d),x.t].map(pdfTxt)));
+    if(!zeilen.length){d.setFont('helvetica','normal');d.setFontSize(10);d.text('Keine Bemerkungen.',14,y+7)}
+    else d.autoTable({...TAB_STIL,startY:y+3,head:[['Name','Datum','Bemerkung']],body:zeilen,columnStyles:{0:{cellWidth:34},1:{cellWidth:24}},rowPageBreak:'avoid'});
+  }
+  pdfSeitenzahlen(d);
+  pdfAusgeben(d,`Notenbild_${NK}${sid?'_'+liste[0].name.replace(/[^A-Za-z0-9ÄÖÜäöüß]+/g,''):''}_${heute()}.pdf`);
 }
-
 /* ----- Sichern ----- */
 function vSichern(){
   const l=S.letzteSicherung;

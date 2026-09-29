@@ -1,6 +1,6 @@
 // Offline-Betrieb: erst Netz (für Updates), bei fehlender Verbindung Cache.
-const V = 'u26-v15';
-const DATEIEN = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
+const V = 'u26-v16';
+const DATEIEN = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png', './jspdf.umd.min.js', './jspdf.plugin.autotable.min.js'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(DATEIEN)));
   self.skipWaiting();
