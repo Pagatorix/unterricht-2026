@@ -104,6 +104,13 @@ td:first-child,th:first-child{text-align:left}
 .noten input.md{width:112px;font-size:12px;padding:2px 4px;margin-top:4px;display:block}
 .noten .notizbtn{margin-left:6px;min-height:30px;padding:2px 8px}
 .noten .avg{font-weight:700}
+.sp{display:grid;grid-template-columns:repeat(4,1fr) 24px repeat(4,1fr);gap:8px;row-gap:14px}
+.platz{min-height:62px;border:2px solid var(--line);border-radius:10px;background:var(--card);font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:center;text-align:center;padding:4px;word-break:break-word}
+.platz.leer{border-style:dashed;color:var(--muted);font-weight:400;font-size:13px}
+.platz.sel,.chip.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc);background:var(--acc-soft)}
+.tafel{text-align:center;background:var(--acc-soft);color:var(--acc);border-radius:8px;padding:8px;margin:10px 0;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:2px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;font-weight:600;min-height:42px}
 .lst td,.lst th{text-align:left}
 .lst .haken{width:44px;height:40px;border:2px solid var(--line);border-radius:8px;background:var(--card);font-size:22px;font-weight:700;color:var(--ok)}
 .lst .haken.an{background:var(--ok-soft);border-color:var(--ok)}
@@ -146,6 +153,11 @@ td:first-child,th:first-child{text-align:left}
   #druck table{border-collapse:collapse}
   #druck th,#druck td{border:1px solid #999;padding:4px 6px;color:#000}
   #druck h1{font-size:16pt}
+  @page{size:A4 landscape;margin:12mm}
+  #druck .sp{display:grid;grid-template-columns:repeat(4,1fr) 10mm repeat(4,1fr);gap:3mm;row-gap:6mm}
+  #druck .platz{border:1.5px solid #333;border-radius:2mm;min-height:18mm;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:600;font-size:11pt;padding:1mm;color:#000;background:#fff}
+  #druck .platz.leer{border:1px dashed #aaa}
+  #druck .tafel{text-align:center;border:1.5px solid #333;padding:2mm;margin:4mm 0;font-weight:700;background:#eee;color:#000}
 }
 </style>
 </head>
@@ -314,17 +326,17 @@ const mittel=a=>{a=a.filter(x=>x!=null);return a.length?a.reduce((x,y)=>x+y,0)/a
 function anzahl(sid,hj){const n=S.noten[sid]||{};const c=p=>SLOTS.filter(sl=>sl.startsWith(p)&&n[hj+'-'+sl]).length;return `KA ${c('KA')}/2 · mdl. ${c('M')}/2`}
 
 /* ---------- Oberfläche ---------- */
-const TABS=[['heute','Heute'],['woche','Woche'],['plan','Jahresplan'],['stunden','Stunden'],['noten','Noten'],['listen','Listen'],['sichern','Sichern']];
+const TABS=[['heute','Heute'],['woche','Woche'],['plan','Jahresplan'],['stunden','Stunden'],['noten','Noten'],['listen','Listen'],['sitzplan','Sitzplan'],['sichern','Sichern']];
 let NEDIT=null;
 let TAB='heute', WOFF=0, NK='7d', NANS='tabelle', SFILTER='';
 try{TAB=localStorage.getItem('u26tab')||'heute'}catch{}
-const REDUZIERT=['noten','listen','sichern'];
+const REDUZIERT=['noten','listen','sitzplan','sichern'];
 const sichtbar=()=>S.alleReiter?TABS:TABS.filter(([id])=>REDUZIERT.includes(id));
 function render(){
   if(!sichtbar().some(([id])=>id===TAB))TAB='noten';
   $('#nav').innerHTML=sichtbar().map(([id,l])=>`<button data-act="tab" data-tab="${id}" class="${TAB===id?'on':''}">${l}</button>`).join('');
   $('#kopfinfo').textContent=fmtL(heute());
-  $('#main').innerHTML=({heute:vHeute,woche:vWoche,plan:vPlan,stunden:vStunden,noten:vNoten,listen:vListen,sichern:vSichern}[TAB]||vHeute)();
+  $('#main').innerHTML=({heute:vHeute,woche:vWoche,plan:vPlan,stunden:vStunden,noten:vNoten,listen:vListen,sitzplan:vSitzplan,sichern:vSichern}[TAB]||vHeute)();
 }
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('an');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('an'),2200)}
 
@@ -572,12 +584,48 @@ function oeffneSchueler(id){
     <div class="liste" style="margin-top:10px">${(s.notizen||[]).slice().sort((a,b)=>b.d.localeCompare(a.d)).map(x=>`<div class="card notiz"><div class="row"><b class="small">${fmtL(x.d)}</b><span><button class="btn klein" data-act="notizEdit" data-nid="${x.id}">Bearbeiten</button> <button class="icon" data-act="notizWeg" data-id="${id}" data-nid="${x.id}" aria-label="löschen">🗑</button></span></div><div style="white-space:pre-wrap;margin-top:4px">${esc(x.t)}</div></div>`).join('')||'<p class="muted small">Noch keine Notizen.</p>'}</div>
     <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="drucken" data-id="${id}">Notenbild drucken</button></div>`});
 }
+/* ----- Sitzplan: 4 Reihen × 8 Tische, Durchgang in der Mitte ----- */
+const REIHEN=4, TISCHE=8;
+let SPSEL=null;
+const sp=()=>S.sitzplan[NK];
+const platzVon=sid=>Object.keys(sp().plaetze).find(q=>sp().plaetze[q]===sid);
+function sitzGrid(druck){
+  const P=sp().plaetze,L=S.schueler[NK],name=id=>L.find(s=>s.id===id)?.name||'';
+  const rs=[...Array(REIHEN).keys()],cs=[...Array(TISCHE).keys()];
+  const reihen=sp().lehrersicht?rs.slice().reverse():rs, spalten=sp().lehrersicht?cs.slice().reverse():cs;
+  const tafel=`<div class="tafel">Tafel / Pult</div>`;
+  const gitter=`<div class="sp">${reihen.map(r=>spalten.map((c,i)=>{
+    const p=r+'-'+c,id=P[p],gang=i===TISCHE/2-1?'<div class="gang"></div>':'';
+    const inhalt=id?esc(name(id)):(druck?'':'frei');
+    return (druck?`<div class="platz ${id?'':'leer'}">${inhalt}</div>`
+      :`<button class="platz ${id?'':'leer'} ${id&&id===SPSEL?'sel':''}" data-act="spPlatz" data-p="${p}">${inhalt}</button>`)+gang}).join('')).join('')}</div>`;
+  return sp().lehrersicht?gitter+tafel:tafel+gitter;
+}
+function vSitzplan(){
+  const L=S.schueler[NK],P=sp().plaetze,frei=L.filter(s=>!platzVon(s.id));
+  const selName=SPSEL&&L.find(s=>s.id===SPSEL)?.name;
+  return `<div class="row" style="flex-wrap:wrap">${klassenSeg()}
+    <div class="btns" style="margin:0"><button class="btn" data-act="spSicht">${sp().lehrersicht?'Schülersicht (Tafel oben)':'Lehrersicht (Pult unten)'}</button>
+    <button class="btn" data-act="spZufall">Zufällig verteilen</button><button class="btn" data-act="spLeeren">Alle entfernen</button><button class="btn prim" data-act="spDruck">PDF / Drucken</button></div></div>
+  ${L.length?'':`<div class="card warn" style="margin-top:12px">Für ${NK} gibt es noch keine Klassenliste. Namen unter <b>Noten › Klassenliste</b> einfügen.</div>`}
+  <p class="hint">${selName?`<b>${esc(selName)}</b> ausgewählt – jetzt einen Platz antippen (belegter Platz = Tausch).${platzVon(SPSEL)?' <button class="btn klein" data-act="spRaus">Vom Platz nehmen</button>':''} <button class="btn klein" data-act="spAbwahl">Abbrechen</button>`
+    :'Name unten antippen, dann einen Tisch. Einen belegten Tisch antippen, um die Person umzusetzen.'}</p>
+  <div class="card">${sitzGrid(false)}</div>
+  <h3>Noch ohne Platz (${frei.length})</h3>
+  <div class="chips">${frei.map(s=>`<button class="chip ${s.id===SPSEL?'sel':''}" data-act="spWahl" data-id="${s.id}">${esc(s.name)}</button>`).join('')||'<span class="muted small">Alle haben einen Platz.</span>'}</div>
+  <p class="hint">${Object.keys(P).length} von ${REIHEN*TISCHE} Plätzen belegt.</p>`;
+}
+function druckeSitzplan(){
+  $('#druck').innerHTML=`<h1>Sitzplan ${NK}</h1><p>Stand ${fmtD(heute())} · ${sp().lehrersicht?'Lehrersicht':'Schülersicht'}</p>${sitzGrid(true)}`;
+  window.print();
+}
+
 /* ----- Listen (Abhak- und Eintragungslisten) ----- */
 const TYPEN={haken:'Häkchen',text:'Text',betrag:'Betrag (€)'};
 let LID=null, LOFFEN=false;
 function sortKey(s){return (s.nach||s.name.split(' ').slice(1).join(' ')||s.name).toLocaleLowerCase('de')}
 function sortiere(k){S.schueler[k].sort((a,b)=>sortKey(a).localeCompare(sortKey(b),'de')||a.name.localeCompare(b.name,'de'))}
-function migriere(){S.mDaten??={};S.listen??={};for(const k of KL){S.listen[k]??=[];sortiere(k)}}
+function migriere(){S.mDaten??={};S.listen??={};S.sitzplan??={};for(const k of KL){S.listen[k]??=[];S.sitzplan[k]??={plaetze:{},lehrersicht:false};sortiere(k)}}
 const liste=()=>S.listen[NK].find(l=>l.id===LID);
 const wert=(l,sid,sp)=>l.werte[sid]?.[sp];
 const leer=(sp,v)=>sp.typ==='haken'?!v:(v==null||v==='');
@@ -792,7 +840,7 @@ const ACT={
   thWeg:d=>{const t=thema(d.id),n=S.stunden.filter(s=>s.themaId===d.id).length;
     if(!confirm(`Unterthema „${t.titel}“ löschen?${n?` ${n} Stunde(n) verlieren die Zuordnung.`:''}`))return;
     S.themen=S.themen.filter(x=>x.id!==d.id);S.stunden.forEach(s=>{if(s.themaId===d.id)s.themaId=null});save();render()},
-  nK:d=>{NK=d.k;LID=null;render()},
+  nK:d=>{NK=d.k;LID=null;SPSEL=null;render()},
   nAns:d=>{NANS=d.v;render()},
   schuelerVerw:()=>oeffneKlassenliste(),
   schuelerHinzu:()=>{const L=S.schueler[NK];let n=0,e=0;
@@ -803,7 +851,7 @@ const ACT={
       L.push({id:uid(),name:kurzname(t,L.map(s=>s.name)),nach:t.nach,notizen:[]});n++}
     sortiere(NK);save();refreshModal();toast(`${n} hinzugefügt`+(e?`, ${e} ergänzt`:''))},
   schuelerWeg:d=>{const L=S.schueler[NK],s=L.find(x=>x.id===d.id);if(!confirm(`${s.name} mit allen Noten und Notizen entfernen?`))return;
-    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];for(const l of S.listen[NK])delete l.werte[d.id];save();refreshModal()},
+    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];for(const l of S.listen[NK])delete l.werte[d.id];{const P=S.sitzplan[NK].plaetze;for(const q in P)if(P[q]===d.id)delete P[q]}save();refreshModal()},
   schueler:d=>{NEDIT=null;oeffneSchueler(d.id)},
   notizSpeichern:d=>{const t=$('#notizfeld').value.trim();if(!t){toast('Bitte Text eingeben');return}
     const dat=$('#notizdatum').value||heute(),s=S.schueler[NK].find(x=>x.id===d.id),L=(s.notizen??=[]);
@@ -813,6 +861,23 @@ const ACT={
   notizAbbruch:()=>{NEDIT=null;refreshModal()},
   notizWeg:d=>{if(!confirm('Notiz löschen?'))return;const s=S.schueler[NK].find(x=>x.id===d.id);s.notizen=s.notizen.filter(x=>x.id!==d.nid);if(NEDIT===d.nid)NEDIT=null;save();refreshModal()},
   drucken:d=>drucken(d.id),
+  spWahl:d=>{SPSEL=SPSEL===d.id?null:d.id;render()},
+  spAbwahl:()=>{SPSEL=null;render()},
+  spPlatz:d=>{const P=sp().plaetze,cur=P[d.p];
+    if(!SPSEL){if(cur)SPSEL=cur;render();return}
+    if(cur===SPSEL){SPSEL=null;render();return}
+    const von=platzVon(SPSEL);
+    if(von){if(cur)P[von]=cur;else delete P[von]}
+    P[d.p]=SPSEL;SPSEL=null;save();render()},
+  spRaus:()=>{const v=platzVon(SPSEL);if(v)delete sp().plaetze[v];SPSEL=null;save();render()},
+  spSicht:()=>{sp().lehrersicht=!sp().lehrersicht;save();render()},
+  spLeeren:()=>{if(!confirm(`Alle Plätze in ${NK} leeren?`))return;sp().plaetze={};SPSEL=null;save();render()},
+  spZufall:()=>{const L=S.schueler[NK];if(!L.length)return;
+    if(Object.keys(sp().plaetze).length&&!confirm('Vorhandenen Sitzplan durch eine zufällige Verteilung ersetzen?'))return;
+    const pl=[];for(let r=0;r<REIHEN;r++)for(let c=0;c<TISCHE;c++)pl.push(r+'-'+c);
+    for(let i=pl.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pl[i],pl[j]]=[pl[j],pl[i]]}
+    sp().plaetze={};L.slice(0,pl.length).forEach((s,i)=>sp().plaetze[pl[i]]=s.id);SPSEL=null;save();render()},
+  spDruck:()=>druckeSitzplan(),
   dlOk:()=>{S.letzteSicherung=new Date().toISOString();save();setTimeout(()=>toast('Download gestartet – bitte nach ByCS Drive verschieben'),300)},
   lNeu:()=>oeffneNeueListe(),
   lAnlegen:()=>{const t=$('#ltitel').value.trim();if(!t){toast('Bitte Titel eingeben');return}
@@ -832,7 +897,7 @@ const ACT={
   lHaken:(d,b)=>{const v=!wert(liste(),d.sid,d.sp);setWert(d.sid,d.sp,v);b.classList.toggle('an',v);b.textContent=v?'✓':''},
   sichern:()=>sichern(),
   import:()=>$('#importdatei').click(),
-  reset:()=>{if(confirm('Wirklich ALLE Daten auf diesem Gerät löschen?')&&confirm('Sicher? Das kann nicht rückgängig gemacht werden (außer über eine Sicherung).')){S=neuerStand();schreiben();render();toast('Zurückgesetzt')}},
+  reset:()=>{if(confirm('Wirklich ALLE Daten auf diesem Gerät löschen?')&&confirm('Sicher? Das kann nicht rückgängig gemacht werden (außer über eine Sicherung).')){S=neuerStand();migriere();schreiben();render();toast('Zurückgesetzt')}},
 };
 function verschiebe(id,r){const i=S.stunden.findIndex(s=>s.id===id),j=i+r;if(j<0||j>=S.stunden.length)return;[S.stunden[i],S.stunden[j]]=[S.stunden[j],S.stunden[i]];save();render()}
 document.addEventListener('click',e=>{
