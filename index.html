@@ -605,8 +605,7 @@ function vSitzplan(){
   const L=S.schueler[NK],P=sp().plaetze,frei=L.filter(s=>!platzVon(s.id));
   const selName=SPSEL&&L.find(s=>s.id===SPSEL)?.name;
   return `<div class="row" style="flex-wrap:wrap">${klassenSeg()}
-    <div class="btns" style="margin:0"><button class="btn" data-act="spSicht">${sp().lehrersicht?'Schülersicht (Tafel oben)':'Lehrersicht (Pult unten)'}</button>
-    <button class="btn" data-act="spZufall">Zufällig verteilen</button><button class="btn" data-act="spLeeren">Alle entfernen</button><button class="btn prim" data-act="spDruck">PDF / Drucken</button></div></div>
+    <div class="btns" style="margin:0"><button class="btn" data-act="spZufall">Zufällig verteilen</button><button class="btn" data-act="spLeeren">Alle entfernen</button><button class="btn prim" data-act="spDruck">PDF / Drucken</button></div></div>
   ${L.length?'':`<div class="card warn" style="margin-top:12px">Für ${NK} gibt es noch keine Klassenliste. Namen unter <b>Noten › Klassenliste</b> einfügen.</div>`}
   <p class="hint">${selName?`<b>${esc(selName)}</b> ausgewählt – jetzt einen Platz antippen (belegter Platz = Tausch).${platzVon(SPSEL)?' <button class="btn klein" data-act="spRaus">Vom Platz nehmen</button>':''} <button class="btn klein" data-act="spAbwahl">Abbrechen</button>`
     :'Name unten antippen, dann einen Tisch. Einen belegten Tisch antippen, um die Person umzusetzen.'}</p>
@@ -616,7 +615,7 @@ function vSitzplan(){
   <p class="hint">${Object.keys(P).length} von ${REIHEN*TISCHE} Plätzen belegt.</p>`;
 }
 function druckeSitzplan(){
-  $('#druck').innerHTML=`<h1>Sitzplan ${NK}</h1><p>Stand ${fmtD(heute())} · ${sp().lehrersicht?'Lehrersicht':'Schülersicht'}</p>${sitzGrid(true)}`;
+  $('#druck').innerHTML=`<h1>Sitzplan ${NK}</h1><p>Stand ${fmtD(heute())} · Blick vom Pult in die Klasse</p>${sitzGrid(true)}`;
   window.print();
 }
 
@@ -625,7 +624,7 @@ const TYPEN={haken:'Häkchen',text:'Text',betrag:'Betrag (€)'};
 let LID=null, LOFFEN=false;
 function sortKey(s){return (s.nach||s.name.split(' ').slice(1).join(' ')||s.name).toLocaleLowerCase('de')}
 function sortiere(k){S.schueler[k].sort((a,b)=>sortKey(a).localeCompare(sortKey(b),'de')||a.name.localeCompare(b.name,'de'))}
-function migriere(){S.mDaten??={};S.listen??={};S.sitzplan??={};for(const k of KL){S.listen[k]??=[];S.sitzplan[k]??={plaetze:{},lehrersicht:false};sortiere(k)}}
+function migriere(){S.mDaten??={};S.listen??={};S.sitzplan??={};for(const k of KL){S.listen[k]??=[];S.sitzplan[k]??={plaetze:{}};S.sitzplan[k].lehrersicht=true;sortiere(k)}}
 const liste=()=>S.listen[NK].find(l=>l.id===LID);
 const wert=(l,sid,sp)=>l.werte[sid]?.[sp];
 const leer=(sp,v)=>sp.typ==='haken'?!v:(v==null||v==='');
@@ -870,7 +869,6 @@ const ACT={
     if(von){if(cur)P[von]=cur;else delete P[von]}
     P[d.p]=SPSEL;SPSEL=null;save();render()},
   spRaus:()=>{const v=platzVon(SPSEL);if(v)delete sp().plaetze[v];SPSEL=null;save();render()},
-  spSicht:()=>{sp().lehrersicht=!sp().lehrersicht;save();render()},
   spLeeren:()=>{if(!confirm(`Alle Plätze in ${NK} leeren?`))return;sp().plaetze={};SPSEL=null;save();render()},
   spZufall:()=>{const L=S.schueler[NK];if(!L.length)return;
     if(Object.keys(sp().plaetze).length&&!confirm('Vorhandenen Sitzplan durch eine zufällige Verteilung ersetzen?'))return;
