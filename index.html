@@ -102,6 +102,7 @@ td:first-child,th:first-child{text-align:left}
 .noten input.g{width:42px;height:40px;text-align:center;padding:0;font-size:18px;font-weight:600}
 .noten input[type=date]{font-size:12px;padding:2px 4px;width:118px;margin-top:4px}
 .noten input.md{width:112px;font-size:12px;padding:2px 4px;margin-top:4px;display:block}
+.noten .notizbtn{margin-left:6px;min-height:30px;padding:2px 8px}
 .noten .avg{font-weight:700}
 .noten tfoot td{color:var(--muted);font-weight:600}
 .link{border:0;background:none;color:var(--acc);font-weight:600;padding:4px 0;text-align:left}
@@ -308,6 +309,7 @@ function anzahl(sid,hj){const n=S.noten[sid]||{};const c=p=>SLOTS.filter(sl=>sl.
 
 /* ---------- Oberfläche ---------- */
 const TABS=[['heute','Heute'],['woche','Woche'],['plan','Jahresplan'],['stunden','Stunden'],['noten','Noten'],['sichern','Sichern']];
+let NEDIT=null;
 let TAB='heute', WOFF=0, NK='7d', NANS='tabelle', SFILTER='';
 try{TAB=localStorage.getItem('u26tab')||'heute'}catch{}
 function render(){
@@ -505,11 +507,11 @@ function notentabelle(){
   const L=S.schueler[NK],kd=S.kaDaten[NK];
   const spalten=[1,2].flatMap(h=>SLOTS.map(sl=>h+'-'+sl));
   const colAvg=c=>mittel(L.map(s=>S.noten[s.id]?.[c]??null));
-  return `<p class="hint">Gewichtung: Kurzarbeit 1,5 · mündlich 1. Nur ganze Noten 1–6. Bei mündlichen Noten wird automatisch das heutige Datum eingetragen (änderbar). Nach der Eingabe springt der Cursor in die nächste Zeile. Name antippen für Notizen und Einzelansicht.</p>
+  return `<p class="hint">Gewichtung: Kurzarbeit 1,5 · mündlich 1. Nur ganze Noten 1–6. Bei mündlichen Noten wird automatisch das heutige Datum eingetragen (änderbar). Nach der Eingabe springt der Cursor in die nächste Zeile. ✎ antippen für Notizen mit Datum und Einzelansicht.</p>
   <div class="tabwrap"><table class="noten"><thead>
   <tr><th rowspan="2">Name</th><th colspan="5" class="trenn">1. Halbjahr</th><th colspan="5" class="trenn">2. Halbjahr</th><th rowspan="2" class="trenn">Jahr Ø</th></tr>
   <tr>${[1,2].map(h=>SLOTS.map((sl,i)=>`<th class="${i===0?'trenn':''}">${slotName(sl)}${sl.startsWith('KA')?`<br><input type="date" data-f="kaDatum" data-c="${h}-${sl}" value="${kd[h+'-'+sl]||''}">`:''}</th>`).join('')+'<th>Ø</th>').join('')}</tr></thead>
-  <tbody>${L.map(s=>`<tr><td><button class="link" data-act="schueler" data-id="${s.id}">${esc(s.name)}</button>${s.notizen?.length?' <span class="muted small">✎'+s.notizen.length+'</span>':''}</td>
+  <tbody>${L.map(s=>`<tr><td><button class="link" data-act="schueler" data-id="${s.id}">${esc(s.name)}</button><button class="btn klein notizbtn" data-act="schueler" data-id="${s.id}" aria-label="Notizen zu ${esc(s.name)}">✎ ${s.notizen?.length||''}</button></td>
     ${[1,2].map(h=>SLOTS.map((sl,i)=>`<td class="${i===0?'trenn':''}"><input class="g" inputmode="numeric" maxlength="1" autocomplete="off" data-f="note" data-sid="${s.id}" data-c="${h}-${sl}" value="${S.noten[s.id]?.[h+'-'+sl]||''}">${sl.startsWith('M')?`<input type="date" class="md" data-f="mDatum" data-sid="${s.id}" data-c="${h}-${sl}" value="${mDatum(s.id,h+'-'+sl)}" aria-label="Datum ${slotName(sl)}">`:''}</td>`).join('')+`<td class="avg" data-avg="${s.id}|${h}">${f2(schnitt(s.id,h))}</td>`).join('')}
     <td class="avg trenn" data-avg="${s.id}|0">${f2(schnitt(s.id,0))}</td></tr>`).join('')}</tbody>
   <tfoot><tr><td>Ø Klasse</td>${[1,2].map(h=>SLOTS.map((sl,i)=>`<td class="${i===0?'trenn':''}" data-cavg="${h}-${sl}">${f2(colAvg(h+'-'+sl))}</td>`).join('')+`<td data-cavg="h${h}">${f2(mittel(L.map(s=>schnitt(s.id,h))))}</td>`).join('')}<td class="trenn" data-cavg="h0">${f2(mittel(L.map(s=>schnitt(s.id,0))))}</td></tr></tfoot>
@@ -549,9 +551,13 @@ function oeffneSchueler(id){
     <table><thead><tr><th></th>${SLOTS.map(sl=>`<th>${slotName(sl)}</th>`).join('')}<th>Ø</th><th>Stand</th></tr></thead>
     <tbody>${[1,2].map(h=>`<tr><td>${h}. HJ</td>${SLOTS.map(sl=>`<td>${n[h+'-'+sl]||'–'}${mDatum(id,h+'-'+sl)?`<div class="small muted">${fmtD(mDatum(id,h+'-'+sl)).slice(0,6)}</div>`:''}</td>`).join('')}<td><b>${f2(schnitt(id,h))}</b></td><td class="small">${anzahl(id,h)}</td></tr>`).join('')}
     <tr><td colspan="5"><b>Schuljahr</b></td><td><b>${f2(schnitt(id,0))}</b></td><td></td></tr></tbody></table>
-    <h3>Kurznotizen</h3>
-    <div class="row"><input id="notizfeld" style="flex:1" placeholder="z. B. HA vergessen, gute Mitarbeit …"><button class="btn prim" data-act="notizHinzu" data-id="${id}">+</button></div>
-    <div class="liste" style="margin-top:8px">${(s.notizen||[]).slice().reverse().map(x=>`<div class="row small"><span><span class="muted">${fmtD(x.d)}</span> ${esc(x.t)}</span><button class="icon" data-act="notizWeg" data-id="${id}" data-nid="${x.id}" aria-label="löschen">🗑</button></div>`).join('')||'<p class="muted small">Keine Notizen.</p>'}</div>
+    <h3>Notizen</h3>
+    ${(()=>{const ed=NEDIT&&(s.notizen||[]).find(x=>x.id===NEDIT);
+      return `<div class="card" style="background:var(--bg)">
+      <label style="margin-top:0">Datum<input type="date" id="notizdatum" value="${ed?ed.d:heute()}" style="max-width:180px"></label>
+      <label>Notiz<textarea id="notizfeld" placeholder="z. B. HA vergessen, gute Mitarbeit, Gespräch geführt …">${ed?esc(ed.t):''}</textarea></label>
+      <div class="btns"><button class="btn prim" data-act="notizSpeichern" data-id="${id}">${ed?'Änderung speichern':'Notiz speichern'}</button>${ed?`<button class="btn" data-act="notizAbbruch">Abbrechen</button>`:''}</div></div>`})()}
+    <div class="liste" style="margin-top:10px">${(s.notizen||[]).slice().sort((a,b)=>b.d.localeCompare(a.d)).map(x=>`<div class="card notiz"><div class="row"><b class="small">${fmtL(x.d)}</b><span><button class="btn klein" data-act="notizEdit" data-nid="${x.id}">Bearbeiten</button> <button class="icon" data-act="notizWeg" data-id="${id}" data-nid="${x.id}" aria-label="löschen">🗑</button></span></div><div style="white-space:pre-wrap;margin-top:4px">${esc(x.t)}</div></div>`).join('')||'<p class="muted small">Noch keine Notizen.</p>'}</div>
     <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="drucken" data-id="${id}">Notenbild drucken</button></div>`});
 }
 function drucken(sid){
@@ -693,9 +699,14 @@ const ACT={
     L.sort((a,b)=>a.name.localeCompare(b.name,'de'));save();refreshModal();toast(`${n} hinzugefügt`)},
   schuelerWeg:d=>{const L=S.schueler[NK],s=L.find(x=>x.id===d.id);if(!confirm(`${s.name} mit allen Noten und Notizen entfernen?`))return;
     S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];save();refreshModal()},
-  schueler:d=>oeffneSchueler(d.id),
-  notizHinzu:d=>{const t=$('#notizfeld').value.trim();if(!t)return;const s=S.schueler[NK].find(x=>x.id===d.id);(s.notizen??=[]).push({id:uid(),d:heute(),t});save();refreshModal()},
-  notizWeg:d=>{const s=S.schueler[NK].find(x=>x.id===d.id);s.notizen=s.notizen.filter(x=>x.id!==d.nid);save();refreshModal()},
+  schueler:d=>{NEDIT=null;oeffneSchueler(d.id)},
+  notizSpeichern:d=>{const t=$('#notizfeld').value.trim();if(!t){toast('Bitte Text eingeben');return}
+    const dat=$('#notizdatum').value||heute(),s=S.schueler[NK].find(x=>x.id===d.id),L=(s.notizen??=[]);
+    const alt=NEDIT&&L.find(x=>x.id===NEDIT);if(alt){alt.d=dat;alt.t=t}else L.push({id:uid(),d:dat,t});
+    NEDIT=null;save();refreshModal();toast('Notiz gespeichert')},
+  notizEdit:d=>{NEDIT=d.nid;refreshModal();$('#notizfeld')?.focus()},
+  notizAbbruch:()=>{NEDIT=null;refreshModal()},
+  notizWeg:d=>{if(!confirm('Notiz löschen?'))return;const s=S.schueler[NK].find(x=>x.id===d.id);s.notizen=s.notizen.filter(x=>x.id!==d.nid);if(NEDIT===d.nid)NEDIT=null;save();refreshModal()},
   drucken:d=>drucken(d.id),
   sichern:()=>sichern(),
   import:()=>$('#importdatei').click(),
