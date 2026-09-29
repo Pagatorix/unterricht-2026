@@ -153,6 +153,10 @@ td:first-child,th:first-child{text-align:left}
   #druck table{border-collapse:collapse}
   #druck th,#druck td{border:1px solid #999;padding:4px 6px;color:#000}
   #druck h1{font-size:16pt}
+  #druck h2{font-size:13pt;margin-top:8mm}
+  #druck h3{font-size:11pt;margin:4mm 0 1mm}
+  #druck .bem{break-inside:avoid}
+  #druck .bem table{width:100%}
   @page{size:A4 landscape;margin:12mm}
   #druck .sp{display:grid;grid-template-columns:repeat(4,1fr) 10mm repeat(4,1fr);gap:3mm;row-gap:6mm}
   #druck .platz{border:1.5px solid #333;border-radius:2mm;min-height:18mm;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:600;font-size:11pt;padding:1mm;color:#000;background:#fff}
@@ -696,6 +700,12 @@ function druckeListe(){
   window.print();
 }
 
+function bemerkungen(liste){
+  const mit=liste.filter(s=>s.notizen?.length);
+  if(!mit.length)return '<h2>Bemerkungen</h2><p>Keine Bemerkungen.</p>';
+  return `<h2>Bemerkungen</h2>${mit.map(s=>`<div class="bem">${liste.length>1?`<h3>${esc(s.name)}</h3>`:''}
+    <table>${s.notizen.slice().sort((a,b)=>a.d.localeCompare(b.d)).map(x=>`<tr><td style="white-space:nowrap;vertical-align:top">${fmtD(x.d)}</td><td style="white-space:pre-wrap;text-align:left">${esc(x.t)}</td></tr>`).join('')}</table></div>`).join('')}`;
+}
 function drucken(sid){
   const L=S.schueler[NK],kd=S.kaDaten[NK];
   const kopfzeile=`<tr><th>Name</th>${[1,2].map(h=>SLOTS.map(sl=>`<th>${h}. HJ ${slotName(sl)}${kd[h+'-'+sl]?'<br>'+fmtD(kd[h+'-'+sl]):''}</th>`).join('')+`<th>Ø ${h}. HJ</th>`).join('')}<th>Ø Jahr</th></tr>`;
@@ -703,7 +713,8 @@ function drucken(sid){
   const liste=sid?L.filter(s=>s.id===sid):L;
   $('#druck').innerHTML=`<h1>BwR ${NK} · Notenbild${sid?' · '+esc(liste[0]?.name):''}</h1><p>Stand ${fmtD(heute())} · Gewichtung: Kurzarbeit 1,5, mündlich 1. Der Schnitt dient der Information; maßgeblich ist der Schulmanager.</p>
   <table>${kopfzeile}${liste.map(zeile).join('')}</table>
-  ${sid?'':`<p>Klassenschnitt Schuljahr: <b>${f2(mittel(L.map(s=>schnitt(s.id,0))))}</b></p>`}`;
+  ${sid?'':`<p>Klassenschnitt Schuljahr: <b>${f2(mittel(L.map(s=>schnitt(s.id,0))))}</b></p>`}
+  ${bemerkungen(liste)}`;
   window.print();
 }
 
