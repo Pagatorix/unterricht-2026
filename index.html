@@ -588,7 +588,8 @@ function oeffneSchueler(id){
     <h3>Unterrichtsbeiträge <span class="muted small">${beitrTxt(id)}</span></h3>
     <div class="beitr">${beitr(id).map((v,i)=>`<button class="bfeld ${v==='+'?'plus':v==='-'?'minus':''}" data-act="beitr" data-id="${id}" data-i="${i}" aria-label="Beitrag ${i+1}">${v==='+'?'+':v==='-'?'−':''}</button>`).join('')}
       <button class="btn klein" data-act="beitrLeeren" data-id="${id}">Leeren</button></div>
-    <p class="hint">Feld antippen: leer → + → − → leer.</p>
+    ${(()=>{const a=S.beitrAuto[id];return a?`<p class="small"><span class="pill ok">→ Note ${S.noten[id]?.[a.c]??'–'} als ${slotName(a.c.slice(2))} (${a.c[0]}. HJ) am ${fmtD(mDatum(id,a.c))}</span></p>`:''})()}
+    <p class="hint">Feld antippen: leer → + → − → leer. Sobald das 7. Feld belegt ist, wird daraus die 1. mündliche Note des laufenden Halbjahres gebildet (7× + = 1, 6× + = 2 … 2× + oder weniger = 6).</p>
     <h3>Notizen</h3>
     ${(()=>{const ed=NEDIT&&(s.notizen||[]).find(x=>x.id===NEDIT);
       return `<div class="card" style="background:var(--bg)">
@@ -642,7 +643,10 @@ function sortiere(k){S.schueler[k].sort((a,b)=>sortKey(a).localeCompare(sortKey(
 const BEITR=7;
 const beitr=sid=>S.beitraege[sid]||Array(BEITR).fill('');
 const beitrTxt=sid=>{const b=beitr(sid),p=b.filter(x=>x==='+').length,m=b.filter(x=>x==='-').length;return p||m?`${p}× + · ${m}× −`:''};
-function migriere(){S.beitraege??={};S.mDaten??={};S.listen??={};S.sitzplan??={};for(const k of KL){S.listen[k]??=[];S.sitzplan[k]??={plaetze:{}};S.sitzplan[k].lehrersicht=true;sortiere(k)}}
+const HJ_ENDE='2027-02-19';
+const aktHJ=()=>heute()<=HJ_ENDE?1:2;
+const beitrNote=b=>Math.min(6,8-b.filter(x=>x==='+').length);
+function migriere(){S.beitraege??={};S.beitrAuto??={};S.mDaten??={};S.listen??={};S.sitzplan??={};for(const k of KL){S.listen[k]??=[];S.sitzplan[k]??={plaetze:{}};S.sitzplan[k].lehrersicht=true;sortiere(k)}}
 const liste=()=>S.listen[NK].find(l=>l.id===LID);
 const wert=(l,sid,sp)=>l.werte[sid]?.[sp];
 const leer=(sp,v)=>sp.typ==='haken'?!v:(v==null||v==='');
@@ -875,7 +879,7 @@ const ACT={
       L.push({id:uid(),name:kurzname(t,L.map(s=>s.name)),nach:t.nach,notizen:[]});n++}
     sortiere(NK);save();refreshModal();toast(`${n} hinzugefügt`+(e?`, ${e} ergänzt`:''))},
   schuelerWeg:d=>{const L=S.schueler[NK],s=L.find(x=>x.id===d.id);if(!confirm(`${s.name} mit allen Noten und Notizen entfernen?`))return;
-    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];delete S.beitraege[d.id];for(const l of S.listen[NK])delete l.werte[d.id];{const P=S.sitzplan[NK].plaetze;for(const q in P)if(P[q]===d.id)delete P[q]}save();refreshModal()},
+    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];delete S.beitraege[d.id];delete S.beitrAuto[d.id];for(const l of S.listen[NK])delete l.werte[d.id];{const P=S.sitzplan[NK].plaetze;for(const q in P)if(P[q]===d.id)delete P[q]}save();refreshModal()},
   schueler:d=>{NEDIT=null;oeffneSchueler(d.id)},
   notizSpeichern:d=>{const t=$('#notizfeld').value.trim();if(!t){toast('Bitte Text eingeben');return}
     const dat=$('#notizdatum').value||heute(),s=S.schueler[NK].find(x=>x.id===d.id),L=(s.notizen??=[]);
@@ -885,8 +889,17 @@ const ACT={
   notizAbbruch:()=>{NEDIT=null;refreshModal()},
   notizWeg:d=>{if(!confirm('Notiz löschen?'))return;const s=S.schueler[NK].find(x=>x.id===d.id);s.notizen=s.notizen.filter(x=>x.id!==d.nid);if(NEDIT===d.nid)NEDIT=null;save();refreshModal()},
   drucken:d=>drucken(d.id),
-  beitr:d=>{const b=beitr(d.id).slice(),i=+d.i;b[i]=b[i]===''?'+':b[i]==='+'?'-':'';S.beitraege[d.id]=b;save();refreshModal()},
-  beitrLeeren:d=>{if(!confirm('Alle sieben Unterrichtsbeiträge leeren?'))return;delete S.beitraege[d.id];save();refreshModal()},
+  beitr:d=>{const sid=d.id,b=beitr(sid).slice(),i=+d.i;b[i]=b[i]===''?'+':b[i]==='+'?'-':'';S.beitraege[sid]=b;
+    const auto=S.beitrAuto[sid],n=(S.noten[sid]??={}),md=(S.mDaten[sid]??={});
+    if(b[BEITR-1]!==''){
+      const note=beitrNote(b);
+      if(auto){n[auto.c]=note}
+      else{const c=aktHJ()+'-M1';
+        if(n[c]&&!confirm(`Die 1. mündliche Note (${c[0]}. HJ) ist bereits mit ${n[c]} belegt. Durch Note ${note} aus den Unterrichtsbeiträgen ersetzen?`)){save();refreshModal();return}
+        n[c]=note;md[c]=heute();S.beitrAuto[sid]={c};toast(`Note ${note} als 1. mündliche Note eingetragen`)}
+    }else if(auto){delete n[auto.c];delete md[auto.c];delete S.beitrAuto[sid];toast('Note aus Unterrichtsbeiträgen entfernt')}
+    save();refreshModal()},
+  beitrLeeren:d=>{if(!confirm('Alle sieben Unterrichtsbeiträge leeren? Eine bereits gebildete Note bleibt stehen.'))return;delete S.beitraege[d.id];delete S.beitrAuto[d.id];save();refreshModal()},
   spWahl:d=>{SPSEL=SPSEL===d.id?null:d.id;render()},
   spAbwahl:()=>{SPSEL=null;render()},
   spModus:()=>{SPUMSETZEN=!SPUMSETZEN;SPSEL=null;render()},
