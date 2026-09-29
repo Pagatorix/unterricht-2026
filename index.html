@@ -104,6 +104,12 @@ td:first-child,th:first-child{text-align:left}
 .noten input.md{width:112px;font-size:12px;padding:2px 4px;margin-top:4px;display:block}
 .noten .notizbtn{margin-left:6px;min-height:30px;padding:2px 8px}
 .noten .avg{font-weight:700}
+.lst td,.lst th{text-align:left}
+.lst .haken{width:44px;height:40px;border:2px solid var(--line);border-radius:8px;background:var(--card);font-size:22px;font-weight:700;color:var(--ok)}
+.lst .haken.an{background:var(--ok-soft);border-color:var(--ok)}
+.lst input.ltext{width:100%;min-width:200px}
+.lst input.betrag{width:96px;text-align:right}
+.lst tfoot td{color:var(--muted);font-weight:600}
 .noten tfoot td{color:var(--muted);font-weight:600}
 .link{border:0;background:none;color:var(--acc);font-weight:600;padding:4px 0;text-align:left}
 .plan td{text-align:left}
@@ -253,7 +259,7 @@ function neuerStand(){return{
   lb:LB.map(x=>({...x})),
   themen:THEMEN_START.map(([lb,titel,std])=>({id:uid(),lb,titel,std})),
   stunden:[],tagebuch:{},
-  schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},
+  schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
 const DBN='unterricht2026', STORE='kv';
@@ -308,14 +314,14 @@ const mittel=a=>{a=a.filter(x=>x!=null);return a.length?a.reduce((x,y)=>x+y,0)/a
 function anzahl(sid,hj){const n=S.noten[sid]||{};const c=p=>SLOTS.filter(sl=>sl.startsWith(p)&&n[hj+'-'+sl]).length;return `KA ${c('KA')}/2 · mdl. ${c('M')}/2`}
 
 /* ---------- Oberfläche ---------- */
-const TABS=[['heute','Heute'],['woche','Woche'],['plan','Jahresplan'],['stunden','Stunden'],['noten','Noten'],['sichern','Sichern']];
+const TABS=[['heute','Heute'],['woche','Woche'],['plan','Jahresplan'],['stunden','Stunden'],['noten','Noten'],['listen','Listen'],['sichern','Sichern']];
 let NEDIT=null;
 let TAB='heute', WOFF=0, NK='7d', NANS='tabelle', SFILTER='';
 try{TAB=localStorage.getItem('u26tab')||'heute'}catch{}
 function render(){
   $('#nav').innerHTML=TABS.map(([id,l])=>`<button data-act="tab" data-tab="${id}" class="${TAB===id?'on':''}">${l}</button>`).join('');
   $('#kopfinfo').textContent=fmtL(heute());
-  $('#main').innerHTML=({heute:vHeute,woche:vWoche,plan:vPlan,stunden:vStunden,noten:vNoten,sichern:vSichern}[TAB]||vHeute)();
+  $('#main').innerHTML=({heute:vHeute,woche:vWoche,plan:vPlan,stunden:vStunden,noten:vNoten,listen:vListen,sichern:vSichern}[TAB]||vHeute)();
 }
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('an');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('an'),2200)}
 
@@ -560,6 +566,79 @@ function oeffneSchueler(id){
     <div class="liste" style="margin-top:10px">${(s.notizen||[]).slice().sort((a,b)=>b.d.localeCompare(a.d)).map(x=>`<div class="card notiz"><div class="row"><b class="small">${fmtL(x.d)}</b><span><button class="btn klein" data-act="notizEdit" data-nid="${x.id}">Bearbeiten</button> <button class="icon" data-act="notizWeg" data-id="${id}" data-nid="${x.id}" aria-label="löschen">🗑</button></span></div><div style="white-space:pre-wrap;margin-top:4px">${esc(x.t)}</div></div>`).join('')||'<p class="muted small">Noch keine Notizen.</p>'}</div>
     <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="drucken" data-id="${id}">Notenbild drucken</button></div>`});
 }
+/* ----- Listen (Abhak- und Eintragungslisten) ----- */
+const TYPEN={haken:'Häkchen',text:'Text',betrag:'Betrag (€)'};
+let LID=null, LOFFEN=false;
+function migriere(){S.mDaten??={};S.listen??={};for(const k of KL)S.listen[k]??=[]}
+const liste=()=>S.listen[NK].find(l=>l.id===LID);
+const wert=(l,sid,sp)=>l.werte[sid]?.[sp];
+const leer=(sp,v)=>sp.typ==='haken'?!v:(v==null||v==='');
+const euro=x=>x.toFixed(2).replace('.',',')+' €';
+function fuss(l,sp){
+  const L=S.schueler[NK],w=L.map(s=>wert(l,s.id,sp.id)),n=w.filter(v=>!leer(sp,v)).length;
+  if(sp.typ==='betrag')return `${n}/${L.length} · Σ ${euro(w.reduce((a,v)=>a+(+v||0),0))}`;
+  return `${n} von ${L.length}`;
+}
+function klassenSeg(){return `<div class="seg">${KL.map(k=>`<button data-act="nK" data-k="${k}" class="${NK===k?'on':''}">${k}</button>`).join('')}</div>`}
+function vListen(){
+  if(LID&&!liste())LID=null;
+  if(LID)return listeDetail();
+  const Ls=S.listen[NK];
+  return `<div class="row" style="flex-wrap:wrap">${klassenSeg()}<button class="btn prim" data-act="lNeu">+ Neue Liste</button></div>
+  ${S.schueler[NK].length?'':`<div class="card warn" style="margin-top:12px">Für ${NK} gibt es noch keine Klassenliste. Namen unter <b>Noten › Klassenliste</b> einfügen.</div>`}
+  <div class="liste" style="margin-top:12px">${Ls.slice().sort((a,b)=>(b.datum||'').localeCompare(a.datum||'')).map(l=>`<button class="card termin" data-act="lOeffnen" data-id="${l.id}">
+    <div class="tt"><b>${esc(l.titel||'(ohne Titel)')}</b><div class="muted small">${l.datum?fmtD(l.datum)+' · ':''}${l.spalten.map(sp=>`${esc(sp.name)}: ${fuss(l,sp)}`).join(' · ')}</div></div><span class="muted">›</span></button>`).join('')||'<p class="muted">Noch keine Listen. Beispiele: „Elternbrief Wandertag“, „Referatsthemen“, „Kopiergeld“.</p>'}</div>`;
+}
+function listeDetail(){
+  const l=liste(),L=S.schueler[NK];
+  const zeilen=L.filter(s=>!LOFFEN||l.spalten.some(sp=>leer(sp,wert(l,s.id,sp.id))));
+  const zelle=(s,sp)=>{const v=wert(l,s.id,sp.id);
+    if(sp.typ==='haken')return `<button class="haken ${v?'an':''}" data-act="lHaken" data-sid="${s.id}" data-sp="${sp.id}" aria-label="abhaken">${v?'✓':''}</button>`;
+    if(sp.typ==='betrag')return `<input class="betrag" inputmode="decimal" data-f="lBetrag" data-sid="${s.id}" data-sp="${sp.id}" value="${v==null?'':(+v).toFixed(2).replace('.',',')}">`;
+    return `<input class="ltext" data-f="lText" data-sid="${s.id}" data-sp="${sp.id}" value="${esc(v??'')}">`;
+  };
+  return `<div class="row" style="flex-wrap:wrap"><button class="btn" data-act="lZurueck">‹ Alle Listen ${NK}</button>
+    <div class="btns" style="margin:0"><button class="btn" data-act="lSpalteNeu">+ Spalte</button><button class="btn" data-act="lDruck">Drucken</button><button class="btn gefahr" data-act="lWeg">Liste löschen</button></div></div>
+  <div class="card" style="margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <label style="flex:1;min-width:220px;margin:0">Titel<input data-f="lTitel" value="${esc(l.titel)}"></label>
+    <label style="margin:0">Datum<input type="date" data-f="lDatum" value="${l.datum||''}"></label>
+    <label style="margin:0;display:flex;align-items:center;gap:8px;min-height:42px"><input type="checkbox" data-f="lOffen" ${LOFFEN?'checked':''} style="width:auto;margin:0"> nur offene</label></div>
+  <div class="tabwrap" style="margin-top:12px"><table class="lst"><thead><tr><th>Name</th>${l.spalten.map(sp=>`<th><button class="link" data-act="lSpalte" data-sp="${sp.id}">${esc(sp.name)} ⚙</button><div class="small muted">${TYPEN[sp.typ]}</div></th>`).join('')}</tr></thead>
+  <tbody>${zeilen.map(s=>`<tr><td>${esc(s.name)}</td>${l.spalten.map(sp=>`<td>${zelle(s,sp)}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${1+l.spalten.length}" class="muted">${L.length?'Alles erledigt.':'Keine Schüler:innen in der Klassenliste.'}</td></tr>`}</tbody>
+  <tfoot><tr><td>Stand</td>${l.spalten.map(sp=>`<td data-lfuss="${sp.id}">${fuss(l,sp)}</td>`).join('')}</tr></tfoot></table></div>`;
+}
+function refreshFuss(){const l=liste();if(!l)return;for(const sp of l.spalten){const el=$(`[data-lfuss="${sp.id}"]`);if(el)el.textContent=fuss(l,sp)}}
+function setWert(sid,sp,v){const l=liste(),w=(l.werte[sid]??={});if(v==null||v===''||v===false)delete w[sp];else w[sp]=v;save();refreshFuss()}
+function typAuswahl(sel){return `<select id="sptyp">${Object.entries(TYPEN).map(([k,v])=>`<option value="${k}" ${k===sel?'selected':''}>${v}</option>`).join('')}</select>`}
+function oeffneNeueListe(){
+  modal(()=>`<h2>Neue Liste für ${NK}</h2>
+  <label>Titel<input id="ltitel" placeholder="z. B. Referatsthemen, Elternbrief Wandertag"></label>
+  <label>Datum<input type="date" id="ldatum" value="${heute()}"></label>
+  <label>Erste Spalte<input id="spname" value="erledigt"></label>
+  <label>Art der Spalte${typAuswahl('haken')}</label>
+  <p class="hint">Weitere Spalten (z. B. „Thema“ als Text und „Termin“ als Text) können Sie danach hinzufügen.</p>
+  <div class="btns"><button class="btn prim" data-act="lAnlegen">Anlegen</button><button class="btn" data-act="zu">Abbrechen</button></div>`);
+}
+function oeffneSpalte(spId){
+  const l=liste(),sp=spId&&l.spalten.find(x=>x.id===spId);
+  modal(()=>`<h2>${sp?'Spalte bearbeiten':'Neue Spalte'}</h2>
+  <label>Name<input id="spname" value="${esc(sp?.name||'')}" placeholder="z. B. Thema, Termin, abgegeben"></label>
+  <label>Art${typAuswahl(sp?.typ||'text')}</label>
+  ${sp?'<p class="hint">Beim Wechsel der Art bleiben vorhandene Einträge gespeichert, werden aber ggf. anders dargestellt.</p>':''}
+  <div class="btns"><button class="btn prim" data-act="lSpalteOk" data-sp="${sp?.id||''}">Speichern</button>
+  ${sp?`<button class="btn" data-act="lSpalteLinks" data-sp="${sp.id}">◀ nach links</button><button class="btn gefahr" data-act="lSpalteWeg" data-sp="${sp.id}">Spalte löschen</button>`:''}
+  <button class="btn" data-act="zu">Abbrechen</button></div>`);
+}
+function druckeListe(){
+  const l=liste(),L=S.schueler[NK];
+  const zeig=(sp,v)=>sp.typ==='haken'?(v?'✓':''):sp.typ==='betrag'&&v!=null&&v!==''?euro(+v):esc(v??'');
+  $('#druck').innerHTML=`<h1>${esc(l.titel)} · ${NK}</h1><p>${l.datum?fmtD(l.datum):''}</p>
+  <table><tr><th>Name</th>${l.spalten.map(sp=>`<th>${esc(sp.name)}</th>`).join('')}</tr>
+  ${L.map(s=>`<tr><td>${esc(s.name)}</td>${l.spalten.map(sp=>`<td style="min-width:60px">${zeig(sp,wert(l,s.id,sp.id))}</td>`).join('')}</tr>`).join('')}
+  <tr><td><b>Stand</b></td>${l.spalten.map(sp=>`<td>${fuss(l,sp)}</td>`).join('')}</tr></table>`;
+  window.print();
+}
+
 function drucken(sid){
   const L=S.schueler[NK],kd=S.kaDaten[NK];
   const kopfzeile=`<tr><th>Name</th>${[1,2].map(h=>SLOTS.map(sl=>`<th>${h}. HJ ${slotName(sl)}${kd[h+'-'+sl]?'<br>'+fmtD(kd[h+'-'+sl]):''}</th>`).join('')+`<th>Ø ${h}. HJ</th>`).join('')}<th>Ø Jahr</th></tr>`;
@@ -613,7 +692,7 @@ $('#importdatei').addEventListener('change',async e=>{
     const o=JSON.parse(await f.text());
     if(o.app!=='unterricht-2026'||o.stand?.v!==1)throw new Error('Keine Sicherung dieser App.');
     if(!confirm(`Sicherung vom ${new Date(o.exportiert).toLocaleString('de-DE')} laden? Alle aktuellen Daten auf diesem Gerät werden ersetzt.`))return;
-    S=o.stand;S.mDaten??={};await schreiben();render();toast('Sicherung geladen');
+    S=o.stand;migriere();await schreiben();render();toast('Sicherung geladen');
   }catch(err){alert('Laden fehlgeschlagen: '+err.message)}
 });
 
@@ -691,14 +770,14 @@ const ACT={
   thWeg:d=>{const t=thema(d.id),n=S.stunden.filter(s=>s.themaId===d.id).length;
     if(!confirm(`Unterthema „${t.titel}“ löschen?${n?` ${n} Stunde(n) verlieren die Zuordnung.`:''}`))return;
     S.themen=S.themen.filter(x=>x.id!==d.id);S.stunden.forEach(s=>{if(s.themaId===d.id)s.themaId=null});save();render()},
-  nK:d=>{NK=d.k;render()},
+  nK:d=>{NK=d.k;LID=null;render()},
   nAns:d=>{NANS=d.v;render()},
   schuelerVerw:()=>oeffneKlassenliste(),
   schuelerHinzu:()=>{const L=S.schueler[NK];let n=0;
     for(const z of $('#namenfeld').value.split('\n')){const k=kurzname(z,L.map(s=>s.name));if(k){L.push({id:uid(),name:k,notizen:[]});n++}}
     L.sort((a,b)=>a.name.localeCompare(b.name,'de'));save();refreshModal();toast(`${n} hinzugefügt`)},
   schuelerWeg:d=>{const L=S.schueler[NK],s=L.find(x=>x.id===d.id);if(!confirm(`${s.name} mit allen Noten und Notizen entfernen?`))return;
-    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];save();refreshModal()},
+    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];for(const l of S.listen[NK])delete l.werte[d.id];save();refreshModal()},
   schueler:d=>{NEDIT=null;oeffneSchueler(d.id)},
   notizSpeichern:d=>{const t=$('#notizfeld').value.trim();if(!t){toast('Bitte Text eingeben');return}
     const dat=$('#notizdatum').value||heute(),s=S.schueler[NK].find(x=>x.id===d.id),L=(s.notizen??=[]);
@@ -708,6 +787,22 @@ const ACT={
   notizAbbruch:()=>{NEDIT=null;refreshModal()},
   notizWeg:d=>{if(!confirm('Notiz löschen?'))return;const s=S.schueler[NK].find(x=>x.id===d.id);s.notizen=s.notizen.filter(x=>x.id!==d.nid);if(NEDIT===d.nid)NEDIT=null;save();refreshModal()},
   drucken:d=>drucken(d.id),
+  lNeu:()=>oeffneNeueListe(),
+  lAnlegen:()=>{const t=$('#ltitel').value.trim();if(!t){toast('Bitte Titel eingeben');return}
+    const l={id:uid(),titel:t,datum:$('#ldatum').value,spalten:[{id:uid(),name:$('#spname').value.trim()||'Spalte 1',typ:$('#sptyp').value}],werte:{}};
+    S.listen[NK].push(l);LID=l.id;LOFFEN=false;save();zu()},
+  lOeffnen:d=>{LID=d.id;LOFFEN=false;render();window.scrollTo(0,0)},
+  lZurueck:()=>{LID=null;render()},
+  lWeg:()=>{const l=liste();if(!confirm(`Liste „${l.titel}“ mit allen Einträgen löschen?`))return;S.listen[NK]=S.listen[NK].filter(x=>x.id!==LID);LID=null;save();render()},
+  lDruck:()=>druckeListe(),
+  lSpalteNeu:()=>oeffneSpalte(null),
+  lSpalte:d=>oeffneSpalte(d.sp),
+  lSpalteOk:d=>{const l=liste(),name=$('#spname').value.trim()||'Spalte',typ=$('#sptyp').value;
+    if(d.sp){Object.assign(l.spalten.find(x=>x.id===d.sp),{name,typ})}else l.spalten.push({id:uid(),name,typ});save();zu()},
+  lSpalteLinks:d=>{const l=liste(),i=l.spalten.findIndex(x=>x.id===d.sp);if(i>0)[l.spalten[i-1],l.spalten[i]]=[l.spalten[i],l.spalten[i-1]];save();zu()},
+  lSpalteWeg:d=>{const l=liste();if(l.spalten.length<2){toast('Eine Liste braucht mindestens eine Spalte');return}
+    if(!confirm('Spalte mit allen Einträgen löschen?'))return;l.spalten=l.spalten.filter(x=>x.id!==d.sp);for(const w of Object.values(l.werte))delete w[d.sp];save();zu()},
+  lHaken:(d,b)=>{const v=!wert(liste(),d.sid,d.sp);setWert(d.sid,d.sp,v);b.classList.toggle('an',v);b.textContent=v?'✓':''},
   sichern:()=>sichern(),
   import:()=>$('#importdatei').click(),
   reset:()=>{if(confirm('Wirklich ALLE Daten auf diesem Gerät löschen?')&&confirm('Sicher? Das kann nicht rückgängig gemacht werden (außer über eine Sicherung).')){S=neuerStand();schreiben();render();toast('Zurückgesetzt')}},
@@ -723,6 +818,8 @@ const IN={
   tNotiz:el=>{uebernimmVorschlag(el.dataset.key);setTb(el.dataset.key,{notiz:el.value})},
   sFeld:el=>{stunde(el.dataset.id)[el.dataset.feld]=el.value;save()},
   thTitel:el=>{thema(el.dataset.id).titel=el.value;save()},
+  lText:el=>setWert(el.dataset.sid,el.dataset.sp,el.value),
+  lTitel:el=>{liste().titel=el.value;save()},
   sName:el=>{S.schueler[NK].find(x=>x.id===el.dataset.id).name=el.value;save()},
   note:el=>{
     const v=el.value.replace(/[^1-6]/g,'').slice(-1);el.value=v;
@@ -741,6 +838,11 @@ const CH={
   puffer:el=>{S.puffer=Math.max(0,+el.value||0);save();render()},
   sFilter:el=>{SFILTER=el.value;render()},
   kaDatum:el=>{S.kaDaten[NK][el.dataset.c]=el.value;save()},
+  lBetrag:el=>{const t=el.value.replace(/[^\d,.-]/g,'').replace(',','.'),v=t===''?null:+t;
+    if(v!=null&&isNaN(v)){el.value='';setWert(el.dataset.sid,el.dataset.sp,null);return}
+    setWert(el.dataset.sid,el.dataset.sp,v);el.value=v==null?'':v.toFixed(2).replace('.',',')},
+  lDatum:el=>{liste().datum=el.value;save()},
+  lOffen:el=>{LOFFEN=el.checked;render()},
   mDatum:el=>{const md=(S.mDaten[el.dataset.sid]??={});if(el.value)md[el.dataset.c]=el.value;else delete md[el.dataset.c];save()},
 };
 document.addEventListener('input',e=>{const el=e.target.closest('[data-f]');if(el)IN[el.dataset.f]?.(el,e)});
@@ -750,7 +852,7 @@ document.addEventListener('change',e=>{const el=e.target.closest('[data-f]');if(
 (async()=>{
   S=await laden();
   if(!S||S.v!==1){S=neuerStand();await schreiben()}
-  S.mDaten??={};
+  migriere();
   try{await navigator.storage?.persist?.()}catch{}
   render();
   if(TAB==='sichern')speicherInfo();
