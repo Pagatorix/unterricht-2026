@@ -488,13 +488,15 @@ function uebernimmVorschlag(key){
 }
 
 /* ----- Noten ----- */
-function kurzname(zeile,vorhanden){
+function zerlege(zeile){
   zeile=zeile.replace(/\t/g,' ').replace(/^\s*\d+[\s.)]*/,'').trim();
   if(!zeile)return null;
   let vor,nach;
   if(zeile.includes(',')){[nach,vor]=zeile.split(',').map(x=>x.trim())}
   else{const p=zeile.split(/\s+/);vor=p[0];nach=p.slice(1).join(' ')}
-  vor=(vor||'').split(/\s+/)[0];nach=(nach||'').trim();
+  return{vor:(vor||'').split(/\s+/)[0],nach:(nach||'').trim()};
+}
+function kurzname({vor,nach},vorhanden){
   if(!nach)return vor;
   for(let n=1;n<=nach.length;n++){const k=`${vor} ${nach.slice(0,n)}.`;if(!vorhanden.includes(k))return k}
   return `${vor} ${nach}`;
@@ -547,7 +549,8 @@ function oeffneKlassenliste(){
     <p class="hint">Formate „Nachname, Vorname“ und „Vorname Nachname“ werden erkannt und auf Vorname + Initial gekürzt. Die Namen bleiben nur auf diesem Gerät und in Ihrer Sicherung.</p>
     <div class="btns"><button class="btn prim" data-act="schuelerHinzu">Hinzufügen</button></div>
     <h3>${L.length} Schüler:innen</h3>
-    <div class="liste">${L.map(s=>`<div class="row"><input style="flex:1" data-f="sName" data-id="${s.id}" value="${esc(s.name)}"><button class="icon" data-act="schuelerWeg" data-id="${s.id}" aria-label="entfernen">🗑</button></div>`).join('')}</div>
+    <p class="hint">Sortiert nach Familienname. Der Familienname dient nur der Sortierung und bleibt auf diesem Gerät; angezeigt wird der Kurzname.${L.some(s=>!s.nach)?' <b>Fehlt ein Familienname, einfach die Liste aus dem Schulmanager noch einmal einfügen</b> – vorhandene Einträge werden ergänzt, nicht doppelt angelegt.':''}</p>
+    <div class="liste">${L.map(s=>`<div class="row"><input style="flex:1" data-f="sName" data-id="${s.id}" value="${esc(s.name)}" aria-label="Kurzname"><input style="flex:1" data-f="sNach" data-id="${s.id}" value="${esc(s.nach||'')}" placeholder="Familienname" aria-label="Familienname"><button class="icon" data-act="schuelerWeg" data-id="${s.id}" aria-label="entfernen">🗑</button></div>`).join('')}</div>
     <div class="btns"><button class="btn prim" data-act="zu">Fertig</button></div>`});
 }
 function oeffneSchueler(id){
@@ -569,7 +572,9 @@ function oeffneSchueler(id){
 /* ----- Listen (Abhak- und Eintragungslisten) ----- */
 const TYPEN={haken:'Häkchen',text:'Text',betrag:'Betrag (€)'};
 let LID=null, LOFFEN=false;
-function migriere(){S.mDaten??={};S.listen??={};for(const k of KL)S.listen[k]??=[]}
+function sortKey(s){return (s.nach||s.name.split(' ').slice(1).join(' ')||s.name).toLocaleLowerCase('de')}
+function sortiere(k){S.schueler[k].sort((a,b)=>sortKey(a).localeCompare(sortKey(b),'de')||a.name.localeCompare(b.name,'de'))}
+function migriere(){S.mDaten??={};S.listen??={};for(const k of KL){S.listen[k]??=[];sortiere(k)}}
 const liste=()=>S.listen[NK].find(l=>l.id===LID);
 const wert=(l,sid,sp)=>l.werte[sid]?.[sp];
 const leer=(sp,v)=>sp.typ==='haken'?!v:(v==null||v==='');
@@ -773,9 +778,13 @@ const ACT={
   nK:d=>{NK=d.k;LID=null;render()},
   nAns:d=>{NANS=d.v;render()},
   schuelerVerw:()=>oeffneKlassenliste(),
-  schuelerHinzu:()=>{const L=S.schueler[NK];let n=0;
-    for(const z of $('#namenfeld').value.split('\n')){const k=kurzname(z,L.map(s=>s.name));if(k){L.push({id:uid(),name:k,notizen:[]});n++}}
-    L.sort((a,b)=>a.name.localeCompare(b.name,'de'));save();refreshModal();toast(`${n} hinzugefügt`)},
+  schuelerHinzu:()=>{const L=S.schueler[NK];let n=0,e=0;
+    for(const z of $('#namenfeld').value.split('\n')){const t=zerlege(z);if(!t||!t.vor)continue;
+      const alt=t.nach&&L.find(s=>!s.nach&&s.name===`${t.vor} ${t.nach[0]}.`);
+      if(alt){alt.nach=t.nach;e++;continue}
+      if(t.nach&&L.some(s=>s.nach===t.nach&&s.name.startsWith(t.vor+' ')))continue;
+      L.push({id:uid(),name:kurzname(t,L.map(s=>s.name)),nach:t.nach,notizen:[]});n++}
+    sortiere(NK);save();refreshModal();toast(`${n} hinzugefügt`+(e?`, ${e} ergänzt`:''))},
   schuelerWeg:d=>{const L=S.schueler[NK],s=L.find(x=>x.id===d.id);if(!confirm(`${s.name} mit allen Noten und Notizen entfernen?`))return;
     S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];for(const l of S.listen[NK])delete l.werte[d.id];save();refreshModal()},
   schueler:d=>{NEDIT=null;oeffneSchueler(d.id)},
@@ -821,6 +830,7 @@ const IN={
   lText:el=>setWert(el.dataset.sid,el.dataset.sp,el.value),
   lTitel:el=>{liste().titel=el.value;save()},
   sName:el=>{S.schueler[NK].find(x=>x.id===el.dataset.id).name=el.value;save()},
+  sNach:el=>{S.schueler[NK].find(x=>x.id===el.dataset.id).nach=el.value.trim();save()},
   note:el=>{
     const v=el.value.replace(/[^1-6]/g,'').slice(-1);el.value=v;
     const n=(S.noten[el.dataset.sid]??={});if(v)n[el.dataset.c]=+v;else delete n[el.dataset.c];
@@ -843,6 +853,7 @@ const CH={
     setWert(el.dataset.sid,el.dataset.sp,v);el.value=v==null?'':v.toFixed(2).replace('.',',')},
   lDatum:el=>{liste().datum=el.value;save()},
   lOffen:el=>{LOFFEN=el.checked;render()},
+  sNach:()=>{sortiere(NK);save();refreshModal()},
   mDatum:el=>{const md=(S.mDaten[el.dataset.sid]??={});if(el.value)md[el.dataset.c]=el.value;else delete md[el.dataset.c];save()},
 };
 document.addEventListener('input',e=>{const el=e.target.closest('[data-f]');if(el)IN[el.dataset.f]?.(el,e)});
