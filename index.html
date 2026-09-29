@@ -111,6 +111,8 @@ td:first-child,th:first-child{text-align:left}
 .tafel{text-align:center;background:var(--acc-soft);color:var(--acc);border-radius:8px;padding:8px;margin:10px 0;font-weight:700}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{border:2px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;font-weight:600;min-height:42px}
+.bemschalter{display:flex;align-items:center;gap:8px;margin:0;font-weight:600;font-size:14px;min-height:42px}
+.bemschalter input{width:auto;margin:0}
 .lst td,.lst th{text-align:left}
 .lst .haken{width:44px;height:40px;border:2px solid var(--line);border-radius:8px;background:var(--card);font-size:22px;font-weight:700;color:var(--ok)}
 .lst .haken.an{background:var(--ok-soft);border-color:var(--ok)}
@@ -524,7 +526,7 @@ function vNoten(){
   const L=S.schueler[NK];
   const kopf=(S.alleReiter?'':sicherungsBanner())+`<div class="row" style="flex-wrap:wrap"><div class="seg">${KL.map(k=>`<button data-act="nK" data-k="${k}" class="${NK===k?'on':''}">${k}</button>`).join('')}</div>
     <div class="seg"><button data-act="nAns" data-v="tabelle" class="${NANS==='tabelle'?'on':''}">Tabelle</button><button data-act="nAns" data-v="bild" class="${NANS==='bild'?'on':''}">Notenbild</button></div>
-    <div class="btns" style="margin:0"><button class="btn" data-act="schuelerVerw">Klassenliste</button><button class="btn" data-act="drucken">Drucken</button></div></div>`;
+    <div class="btns" style="margin:0"><button class="btn" data-act="schuelerVerw">Klassenliste</button><button class="btn" data-act="drucken">Drucken</button><label class="bemschalter"><input type="checkbox" data-f="druckBem" ${S.druckBem!==false?'checked':''}> mit Bemerkungen</label></div></div>`;
   const nx=STICHTAGE.find(x=>x[0]>=heute());
   const kopf2=kopf+(nx?`<p class="small" style="margin:10px 0 0">Nächster Stichtag: <span class="pill warn">${fmtD(nx[0])} · ${nx[1]}</span> <span class="muted">(in ${Math.round((pd(nx[0])-pd(heute()))/864e5)} Tagen)</span></p>`:'');
   if(!L.length)return kopf2+`<div class="card" style="margin-top:12px"><p>Für ${NK} ist noch keine Klassenliste angelegt.</p><button class="btn prim" data-act="schuelerVerw">Klassenliste einfügen</button></div>`;
@@ -586,7 +588,7 @@ function oeffneSchueler(id){
       <label>Notiz<textarea id="notizfeld" placeholder="z. B. HA vergessen, gute Mitarbeit, Gespräch geführt …">${ed?esc(ed.t):''}</textarea></label>
       <div class="btns"><button class="btn prim" data-act="notizSpeichern" data-id="${id}">${ed?'Änderung speichern':'Notiz speichern'}</button>${ed?`<button class="btn" data-act="notizAbbruch">Abbrechen</button>`:''}</div></div>`})()}
     <div class="liste" style="margin-top:10px">${(s.notizen||[]).slice().sort((a,b)=>b.d.localeCompare(a.d)).map(x=>`<div class="card notiz"><div class="row"><b class="small">${fmtL(x.d)}</b><span><button class="btn klein" data-act="notizEdit" data-nid="${x.id}">Bearbeiten</button> <button class="icon" data-act="notizWeg" data-id="${id}" data-nid="${x.id}" aria-label="löschen">🗑</button></span></div><div style="white-space:pre-wrap;margin-top:4px">${esc(x.t)}</div></div>`).join('')||'<p class="muted small">Noch keine Notizen.</p>'}</div>
-    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="drucken" data-id="${id}">Notenbild drucken</button></div>`});
+    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="drucken" data-id="${id}">Notenbild drucken</button><label class="bemschalter"><input type="checkbox" data-f="druckBem" ${S.druckBem!==false?'checked':''}> mit Bemerkungen</label></div>`});
 }
 /* ----- Sitzplan: 4 Reihen × 8 Tische, Durchgang in der Mitte ----- */
 const REIHEN=4, TISCHE=8;
@@ -714,7 +716,7 @@ function drucken(sid){
   $('#druck').innerHTML=`<h1>BwR ${NK} · Notenbild${sid?' · '+esc(liste[0]?.name):''}</h1><p>Stand ${fmtD(heute())} · Gewichtung: Kurzarbeit 1,5, mündlich 1. Der Schnitt dient der Information; maßgeblich ist der Schulmanager.</p>
   <table>${kopfzeile}${liste.map(zeile).join('')}</table>
   ${sid?'':`<p>Klassenschnitt Schuljahr: <b>${f2(mittel(L.map(s=>schnitt(s.id,0))))}</b></p>`}
-  ${bemerkungen(liste)}`;
+  ${S.druckBem!==false?bemerkungen(liste):''}`;
   window.print();
 }
 
@@ -949,6 +951,7 @@ const CH={
   lOffen:el=>{LOFFEN=el.checked;render()},
   sNach:()=>{sortiere(NK);save();refreshModal()},
   alleReiter:el=>{S.alleReiter=el.checked;save();render()},
+  druckBem:el=>{S.druckBem=el.checked;save();$$('[data-f=druckBem]').forEach(x=>x.checked=el.checked)},
   mDatum:el=>{const md=(S.mDaten[el.dataset.sid]??={});if(el.value)md[el.dataset.c]=el.value;else delete md[el.dataset.c];save()},
 };
 document.addEventListener('input',e=>{const el=e.target.closest('[data-f]');if(el)IN[el.dataset.f]?.(el,e)});
