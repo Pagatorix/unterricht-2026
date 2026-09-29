@@ -318,8 +318,11 @@ const TABS=[['heute','Heute'],['woche','Woche'],['plan','Jahresplan'],['stunden'
 let NEDIT=null;
 let TAB='heute', WOFF=0, NK='7d', NANS='tabelle', SFILTER='';
 try{TAB=localStorage.getItem('u26tab')||'heute'}catch{}
+const REDUZIERT=['noten','listen','sichern'];
+const sichtbar=()=>S.alleReiter?TABS:TABS.filter(([id])=>REDUZIERT.includes(id));
 function render(){
-  $('#nav').innerHTML=TABS.map(([id,l])=>`<button data-act="tab" data-tab="${id}" class="${TAB===id?'on':''}">${l}</button>`).join('');
+  if(!sichtbar().some(([id])=>id===TAB))TAB='noten';
+  $('#nav').innerHTML=sichtbar().map(([id,l])=>`<button data-act="tab" data-tab="${id}" class="${TAB===id?'on':''}">${l}</button>`).join('');
   $('#kopfinfo').textContent=fmtL(heute());
   $('#main').innerHTML=({heute:vHeute,woche:vWoche,plan:vPlan,stunden:vStunden,noten:vNoten,listen:vListen,sichern:vSichern}[TAB]||vHeute)();
 }
@@ -503,7 +506,7 @@ function kurzname({vor,nach},vorhanden){
 }
 function vNoten(){
   const L=S.schueler[NK];
-  const kopf=`<div class="row" style="flex-wrap:wrap"><div class="seg">${KL.map(k=>`<button data-act="nK" data-k="${k}" class="${NK===k?'on':''}">${k}</button>`).join('')}</div>
+  const kopf=(S.alleReiter?'':sicherungsBanner())+`<div class="row" style="flex-wrap:wrap"><div class="seg">${KL.map(k=>`<button data-act="nK" data-k="${k}" class="${NK===k?'on':''}">${k}</button>`).join('')}</div>
     <div class="seg"><button data-act="nAns" data-v="tabelle" class="${NANS==='tabelle'?'on':''}">Tabelle</button><button data-act="nAns" data-v="bild" class="${NANS==='bild'?'on':''}">Notenbild</button></div>
     <div class="btns" style="margin:0"><button class="btn" data-act="schuelerVerw">Klassenliste</button><button class="btn" data-act="drucken">Drucken</button></div></div>`;
   const nx=STICHTAGE.find(x=>x[0]>=heute());
@@ -588,8 +591,9 @@ function klassenSeg(){return `<div class="seg">${KL.map(k=>`<button data-act="nK
 function vListen(){
   if(LID&&!liste())LID=null;
   if(LID)return listeDetail();
+  const banner=S.alleReiter?'':sicherungsBanner();
   const Ls=S.listen[NK];
-  return `<div class="row" style="flex-wrap:wrap">${klassenSeg()}<button class="btn prim" data-act="lNeu">+ Neue Liste</button></div>
+  return banner+`<div class="row" style="flex-wrap:wrap">${klassenSeg()}<button class="btn prim" data-act="lNeu">+ Neue Liste</button></div>
   ${S.schueler[NK].length?'':`<div class="card warn" style="margin-top:12px">Für ${NK} gibt es noch keine Klassenliste. Namen unter <b>Noten › Klassenliste</b> einfügen.</div>`}
   <div class="liste" style="margin-top:12px">${Ls.slice().sort((a,b)=>(b.datum||'').localeCompare(a.datum||'')).map(l=>`<button class="card termin" data-act="lOeffnen" data-id="${l.id}">
     <div class="tt"><b>${esc(l.titel||'(ohne Titel)')}</b><div class="muted small">${l.datum?fmtD(l.datum)+' · ':''}${l.spalten.map(sp=>`${esc(sp.name)}: ${fuss(l,sp)}`).join(' · ')}</div></div><span class="muted">›</span></button>`).join('')||'<p class="muted">Noch keine Listen. Beispiele: „Elternbrief Wandertag“, „Referatsthemen“, „Kopiergeld“.</p>'}</div>`;
@@ -668,6 +672,9 @@ function vSichern(){
     <button class="btn" data-act="import">Datei wählen …</button></div>
   <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Speicher</h3><p class="small" id="speicherinfo">…</p>
     <p class="hint">Damit iPadOS die Daten nicht löscht: App über Safari › Teilen › „Zum Home-Bildschirm“ ablegen und von dort öffnen.</p></div>
+  <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Ansicht</h3>
+    <label style="display:flex;align-items:center;gap:10px;margin:0"><input type="checkbox" data-f="alleReiter" ${S.alleReiter?'checked':''} style="width:auto;margin:0"> Alle Reiter anzeigen (Heute, Woche, Jahresplan, Stunden)</label>
+    <p class="hint">Ausgeblendete Reiter behalten ihre Daten.</p></div>
   <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Zurücksetzen</h3><p class="small">Löscht alle Daten auf diesem Gerät. Vorher sichern!</p><button class="btn gefahr" data-act="reset">Alle Daten löschen</button></div>`;
 }
 async function speicherInfo(){
@@ -854,6 +861,7 @@ const CH={
   lDatum:el=>{liste().datum=el.value;save()},
   lOffen:el=>{LOFFEN=el.checked;render()},
   sNach:()=>{sortiere(NK);save();refreshModal()},
+  alleReiter:el=>{S.alleReiter=el.checked;save();render()},
   mDatum:el=>{const md=(S.mDaten[el.dataset.sid]??={});if(el.value)md[el.dataset.c]=el.value;else delete md[el.dataset.c];save()},
 };
 document.addEventListener('input',e=>{const el=e.target.closest('[data-f]');if(el)IN[el.dataset.f]?.(el,e)});
