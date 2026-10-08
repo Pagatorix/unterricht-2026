@@ -288,7 +288,7 @@ function neuerStand(){return{
   schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
-const APP_VERSION='17';
+const APP_VERSION='18';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -689,7 +689,7 @@ function listeDetail(){
   const zeilen=L.filter(s=>!LOFFEN||l.spalten.some(sp=>leer(sp,wert(l,s.id,sp.id))));
   const zelle=(s,sp)=>{const v=wert(l,s.id,sp.id);
     if(sp.typ==='haken')return `<button class="haken ${v?'an':''}" data-act="lHaken" data-sid="${s.id}" data-sp="${sp.id}" aria-label="abhaken">${v?'✓':''}</button>`;
-    if(sp.typ==='datum')return `<span class="ldat"><input type="date" class="ldatum" data-f="lDatWert" data-sid="${s.id}" data-sp="${sp.id}" value="${v||''}" aria-label="${esc(sp.name)}">${v?'':`<button class="btn klein" data-act="lHeute" data-sid="${s.id}" data-sp="${sp.id}">Heute</button>`}</span>`;
+    if(sp.typ==='datum')return `<span class="ldat"><input type="date" class="ldatum" data-f="lDatWert" data-sid="${s.id}" data-sp="${sp.id}" value="${v||''}" aria-label="${esc(sp.name)}"><button class="btn klein" data-act="lHeute" data-sid="${s.id}" data-sp="${sp.id}">Heute</button><button class="btn klein" data-act="lLeeren" data-sid="${s.id}" data-sp="${sp.id}">Leeren</button></span>`;
     if(sp.typ==='betrag')return `<input class="betrag" inputmode="decimal" data-f="lBetrag" data-sid="${s.id}" data-sp="${sp.id}" value="${v==null?'':(+v).toFixed(2).replace('.',',')}">`;
     return `<input class="ltext" data-f="lText" data-sid="${s.id}" data-sp="${sp.id}" value="${esc(v??'')}">`;
   };
@@ -979,7 +979,8 @@ const ACT={
   lSpalteLinks:d=>{const l=liste(),i=l.spalten.findIndex(x=>x.id===d.sp);if(i>0)[l.spalten[i-1],l.spalten[i]]=[l.spalten[i],l.spalten[i-1]];save();zu()},
   lSpalteWeg:d=>{const l=liste();if(l.spalten.length<2){toast('Eine Liste braucht mindestens eine Spalte');return}
     if(!confirm('Spalte mit allen Einträgen löschen?'))return;l.spalten=l.spalten.filter(x=>x.id!==d.sp);for(const w of Object.values(l.werte))delete w[d.sp];save();zu()},
-  lHeute:(d,b)=>{setWert(d.sid,d.sp,heute());const f=b.parentElement.querySelector('.ldatum');if(f)f.value=heute();b.remove()},
+  lHeute:(d,b)=>{setWert(d.sid,d.sp,heute());b.parentElement.querySelector('.ldatum').value=heute();if(LOFFEN)render()},
+  lLeeren:(d,b)=>{setWert(d.sid,d.sp,null);b.parentElement.querySelector('.ldatum').value=''},
   lHaken:(d,b)=>{const v=!wert(liste(),d.sid,d.sp);setWert(d.sid,d.sp,v);b.classList.toggle('an',v);b.textContent=v?'✓':''},
   sichern:()=>sichern(),
   import:()=>$('#importdatei').click(),
@@ -1021,7 +1022,7 @@ const CH={
     if(v!=null&&isNaN(v)){el.value='';setWert(el.dataset.sid,el.dataset.sp,null);return}
     setWert(el.dataset.sid,el.dataset.sp,v);el.value=v==null?'':v.toFixed(2).replace('.',',')},
   lDatum:el=>{liste().datum=el.value;save()},
-  lDatWert:el=>{setWert(el.dataset.sid,el.dataset.sp,el.value||null);const w=el.parentElement;if(!el.value&&!w.querySelector('button'))w.insertAdjacentHTML('beforeend',`<button class="btn klein" data-act="lHeute" data-sid="${el.dataset.sid}" data-sp="${el.dataset.sp}">Heute</button>`);else if(el.value)w.querySelector('button')?.remove()},
+  lDatWert:el=>setWert(el.dataset.sid,el.dataset.sp,el.value||null),
   lOffen:el=>{LOFFEN=el.checked;render()},
   sNach:()=>{sortiere(NK);save();refreshModal()},
   alleReiter:el=>{S.alleReiter=el.checked;save();render()},
