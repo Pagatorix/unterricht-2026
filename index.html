@@ -121,6 +121,8 @@ td:first-child,th:first-child{text-align:left}
 .lst .haken{width:44px;height:40px;border:2px solid var(--line);border-radius:8px;background:var(--card);font-size:22px;font-weight:700;color:var(--ok)}
 .lst .haken.an{background:var(--ok-soft);border-color:var(--ok)}
 .lst input.ltext{width:100%;min-width:200px}
+.lst .ldat{display:flex;gap:6px;align-items:center}
+.lst input.ldatum{width:140px}
 .lst input.betrag{width:96px;text-align:right}
 .lst tfoot td{color:var(--muted);font-weight:600}
 .noten tfoot td{color:var(--muted);font-weight:600}
@@ -286,7 +288,7 @@ function neuerStand(){return{
   schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
-const APP_VERSION='16';
+const APP_VERSION='17';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -651,7 +653,7 @@ function druckeSitzplan(){
   pdfAusgeben(d,`Sitzplan_${NK}_${heute()}.pdf`);
 }
 /* ----- Listen (Abhak- und Eintragungslisten) ----- */
-const TYPEN={haken:'Häkchen',text:'Text',betrag:'Betrag (€)'};
+const TYPEN={haken:'Häkchen',text:'Text',betrag:'Betrag (€)',datum:'Datum'};
 let LID=null, LOFFEN=false;
 function sortKey(s){return (s.nach||s.name.split(' ').slice(1).join(' ')||s.name).toLocaleLowerCase('de')}
 function sortiere(k){S.schueler[k].sort((a,b)=>sortKey(a).localeCompare(sortKey(b),'de')||a.name.localeCompare(b.name,'de'))}
@@ -687,6 +689,7 @@ function listeDetail(){
   const zeilen=L.filter(s=>!LOFFEN||l.spalten.some(sp=>leer(sp,wert(l,s.id,sp.id))));
   const zelle=(s,sp)=>{const v=wert(l,s.id,sp.id);
     if(sp.typ==='haken')return `<button class="haken ${v?'an':''}" data-act="lHaken" data-sid="${s.id}" data-sp="${sp.id}" aria-label="abhaken">${v?'✓':''}</button>`;
+    if(sp.typ==='datum')return `<span class="ldat"><input type="date" class="ldatum" data-f="lDatWert" data-sid="${s.id}" data-sp="${sp.id}" value="${v||''}" aria-label="${esc(sp.name)}">${v?'':`<button class="btn klein" data-act="lHeute" data-sid="${s.id}" data-sp="${sp.id}">Heute</button>`}</span>`;
     if(sp.typ==='betrag')return `<input class="betrag" inputmode="decimal" data-f="lBetrag" data-sid="${s.id}" data-sp="${sp.id}" value="${v==null?'':(+v).toFixed(2).replace('.',',')}">`;
     return `<input class="ltext" data-f="lText" data-sid="${s.id}" data-sp="${sp.id}" value="${esc(v??'')}">`;
   };
@@ -724,7 +727,7 @@ function oeffneSpalte(spId){
 }
 function druckeListe(){
   const l=liste(),L=S.schueler[NK],d=neuesPdf(l.spalten.length>4);
-  const zeig=(sp,v)=>sp.typ==='haken'?(v?'x':''):sp.typ==='betrag'&&v!=null&&v!==''?euro(+v):(v??'');
+  const zeig=(sp,v)=>sp.typ==='haken'?(v?'x':''):sp.typ==='datum'?(v?fmtD(v):''):sp.typ==='betrag'&&v!=null&&v!==''?euro(+v):(v??'');
   const y=pdfKopf(d,`${l.titel} · ${NK}`,l.datum?fmtD(l.datum):'');
   d.autoTable({...TAB_STIL,startY:y,head:[['Name',...l.spalten.map(sp=>sp.name)].map(pdfTxt)],
     body:[...L.map(s=>[s.name,...l.spalten.map(sp=>zeig(sp,wert(l,s.id,sp.id)))].map(pdfTxt)),['Stand',...l.spalten.map(sp=>fuss(l,sp))].map(pdfTxt)],
@@ -976,6 +979,7 @@ const ACT={
   lSpalteLinks:d=>{const l=liste(),i=l.spalten.findIndex(x=>x.id===d.sp);if(i>0)[l.spalten[i-1],l.spalten[i]]=[l.spalten[i],l.spalten[i-1]];save();zu()},
   lSpalteWeg:d=>{const l=liste();if(l.spalten.length<2){toast('Eine Liste braucht mindestens eine Spalte');return}
     if(!confirm('Spalte mit allen Einträgen löschen?'))return;l.spalten=l.spalten.filter(x=>x.id!==d.sp);for(const w of Object.values(l.werte))delete w[d.sp];save();zu()},
+  lHeute:(d,b)=>{setWert(d.sid,d.sp,heute());const f=b.parentElement.querySelector('.ldatum');if(f)f.value=heute();b.remove()},
   lHaken:(d,b)=>{const v=!wert(liste(),d.sid,d.sp);setWert(d.sid,d.sp,v);b.classList.toggle('an',v);b.textContent=v?'✓':''},
   sichern:()=>sichern(),
   import:()=>$('#importdatei').click(),
@@ -1017,6 +1021,7 @@ const CH={
     if(v!=null&&isNaN(v)){el.value='';setWert(el.dataset.sid,el.dataset.sp,null);return}
     setWert(el.dataset.sid,el.dataset.sp,v);el.value=v==null?'':v.toFixed(2).replace('.',',')},
   lDatum:el=>{liste().datum=el.value;save()},
+  lDatWert:el=>{setWert(el.dataset.sid,el.dataset.sp,el.value||null);const w=el.parentElement;if(!el.value&&!w.querySelector('button'))w.insertAdjacentHTML('beforeend',`<button class="btn klein" data-act="lHeute" data-sid="${el.dataset.sid}" data-sp="${el.dataset.sp}">Heute</button>`);else if(el.value)w.querySelector('button')?.remove()},
   lOffen:el=>{LOFFEN=el.checked;render()},
   sNach:()=>{sortiere(NK);save();refreshModal()},
   alleReiter:el=>{S.alleReiter=el.checked;save();render()},
