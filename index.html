@@ -64,6 +64,8 @@ h3{font-size:16px;margin:16px 0 8px}
 .termin .tk .kl{align-self:flex-start}
 .termin .tt{flex:1;min-width:0}
 .kb{display:block;width:100%;text-align:left}.kb.heute{border-color:var(--acc,#1f5f8b)}.kbf{margin-top:6px;white-space:normal}.kbl{display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.kbraster{display:grid;gap:12px;margin-top:12px}.kbseite{display:flex;flex-direction:column;gap:12px;order:-1}
+@media(min-width:700px){.kbraster{grid-template-columns:minmax(0,1fr) 260px;align-items:start}.kbseite{order:0;position:sticky;top:12px}}
 .notizvor{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:9px 14px;font-weight:600;min-height:42px}
 .btn.prim{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
@@ -289,7 +291,7 @@ function neuerStand(){return{
   schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},kbuch:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
-const APP_VERSION='19';
+const APP_VERSION='20';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -756,9 +758,9 @@ function vTagebuch(){
   const karte=e=>{const std=kbStd(NK,e.d),teile=KB_FELDER.filter(([f])=>(e[f]||'').trim()).map(([f,l])=>`<div class="kbf"><span class="kbl">${l}</span>${mehrzeilig(e[f])}</div>`).join('');
     return `<button class="card kb ${e.d===heute()?'heute':''}" data-act="kbOeffnen" data-id="${e.id}"><div class="row"><b>${fmtK(e.d)}${e.d.slice(0,4)!==heute().slice(0,4)?e.d.slice(2,4):''}</b><span class="muted small">${std?std+'. Std. · ':''}KW ${kw(e.d)}</span></div>${teile||'<div class="muted small">noch leer</div>'}</button>`};
   return banner+`<div class="row" style="flex-wrap:wrap">${klassenSeg()}<div class="btns" style="margin:0"><button class="btn prim" data-act="kbNeu">+ Stunde</button><button class="btn" data-act="kbDruck">PDF</button></div></div>
-  ${letzteHA?`<div class="card" style="margin-top:12px"><div class="muted small">Zuletzt aufgegeben (${fmtK(letzteHA.d)})</div><div>${mehrzeilig(letzteHA.ha)}</div></div>`:''}
-  ${ref.length?`<details class="card" style="margin-top:12px"><summary><b>Referatsthemen ${NK}</b> <span class="badge">${ref.length}</span></summary><div class="small" style="margin-top:8px">${ref.map(e=>`<div class="kbf"><span class="kbl">${fmtK(e.d)}</span>${mehrzeilig(e.referate)}</div>`).join('')}</div></details>`:''}
-  <div class="liste" style="margin-top:12px">${E.map(karte).join('')||`<p class="muted">Noch keine Einträge für ${NK}. Mit „+ Stunde“ beginnen – das Datum der nächsten bzw. heutigen Stunde ist vorbelegt.</p>`}</div>`;
+  <div class="kbraster"><div class="liste">${E.map(karte).join('')||`<p class="muted">Noch keine Einträge für ${NK}. Mit „+ Stunde“ beginnen – das Datum der nächsten bzw. heutigen Stunde ist vorbelegt.</p>`}</div>
+  <aside class="kbseite"><div class="card"><div class="kbl">Zuletzt aufgegeben${letzteHA?` (${fmtK(letzteHA.d)})`:''}</div><div style="margin-top:4px">${letzteHA?mehrzeilig(letzteHA.ha):'<span class="muted small">noch keine Hausaufgabe</span>'}</div></div>
+  <div class="card"><div class="kbl">Referatsthemen <span style="text-transform:none">${NK}</span>${ref.length?` <span class="badge">${ref.length}</span>`:''}</div><div class="small">${ref.map(e=>`<div class="kbf"><b>${fmtK(e.d)}</b><br>${mehrzeilig(e.referate)}</div>`).join('')||'<div class="muted" style="margin-top:4px">noch keine Referatsthemen</div>'}</div></div></aside></div>`;
 }
 function oeffneKbEintrag(id){
   modal(()=>{const e=kbEintrag(id);if(!e)return '<p>Eintrag gelöscht.</p>';const std=kbStd(NK,e.d);
