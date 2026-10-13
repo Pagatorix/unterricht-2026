@@ -291,7 +291,7 @@ function neuerStand(){return{
   schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},kbuch:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
-const APP_VERSION='20';
+const APP_VERSION='21';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -748,9 +748,9 @@ const kbStd=(k,d)=>TERMINE[k].find(t=>t.d===d)?.std;
 const mehrzeilig=t=>esc(t).replace(/\n/g,'<br>');
 function kbVorschlagDatum(){
   const h=heute(),L=TERMINE[NK],hat=d=>S.kbuch[NK].some(e=>e.d===d);
-  if(L.some(t=>t.d===h))return h;
+  if(L.some(t=>t.d===h)&&!hat(h))return h;
   const vor=L.filter(t=>t.d<h&&t.d>=addDays(h,-7)&&!hat(t.d)).at(-1);if(vor)return vor.d;
-  return L.find(t=>t.d>h)?.d||h;
+  return L.find(t=>t.d>h&&!hat(t.d))?.d||h;
 }
 function vTagebuch(){
   const banner=S.alleReiter?'':sicherungsBanner(),E=kbSortiert();
@@ -758,7 +758,7 @@ function vTagebuch(){
   const karte=e=>{const std=kbStd(NK,e.d),teile=KB_FELDER.filter(([f])=>(e[f]||'').trim()).map(([f,l])=>`<div class="kbf"><span class="kbl">${l}</span>${mehrzeilig(e[f])}</div>`).join('');
     return `<button class="card kb ${e.d===heute()?'heute':''}" data-act="kbOeffnen" data-id="${e.id}"><div class="row"><b>${fmtK(e.d)}${e.d.slice(0,4)!==heute().slice(0,4)?e.d.slice(2,4):''}</b><span class="muted small">${std?std+'. Std. · ':''}KW ${kw(e.d)}</span></div>${teile||'<div class="muted small">noch leer</div>'}</button>`};
   return banner+`<div class="row" style="flex-wrap:wrap">${klassenSeg()}<div class="btns" style="margin:0"><button class="btn prim" data-act="kbNeu">+ Stunde</button><button class="btn" data-act="kbDruck">PDF</button></div></div>
-  <div class="kbraster"><div class="liste">${E.map(karte).join('')||`<p class="muted">Noch keine Einträge für ${NK}. Mit „+ Stunde“ beginnen – das Datum der nächsten bzw. heutigen Stunde ist vorbelegt.</p>`}</div>
+  <div class="kbraster"><div class="liste">${E.map(karte).join('')||`<p class="muted">Noch keine Einträge für ${NK}. Mit „+ Stunde“ beginnen – vorbelegt ist die heutige bzw. nächste Stunde ohne Eintrag.</p>`}</div>
   <aside class="kbseite"><div class="card"><div class="kbl">Zuletzt aufgegeben${letzteHA?` (${fmtK(letzteHA.d)})`:''}</div><div style="margin-top:4px">${letzteHA?mehrzeilig(letzteHA.ha):'<span class="muted small">noch keine Hausaufgabe</span>'}</div></div>
   <div class="card"><div class="kbl">Referatsthemen <span style="text-transform:none">${NK}</span>${ref.length?` <span class="badge">${ref.length}</span>`:''}</div><div class="small">${ref.map(e=>`<div class="kbf"><b>${fmtK(e.d)}</b><br>${mehrzeilig(e.referate)}</div>`).join('')||'<div class="muted" style="margin-top:4px">noch keine Referatsthemen</div>'}</div></div></aside></div>`;
 }
@@ -1009,8 +1009,8 @@ const ACT={
     sp().plaetze={};L.slice(0,pl.length).forEach((s,i)=>sp().plaetze[pl[i]]=s.id);SPSEL=null;save();render()},
   spDruck:()=>druckeSitzplan(),
   dlOk:()=>{S.letzteSicherung=new Date().toISOString();save();setTimeout(()=>toast('Download gestartet – bitte nach ByCS Drive verschieben'),300)},
-  kbNeu:()=>{const d=kbVorschlagDatum(),da=S.kbuch[NK].find(e=>e.d===d);if(da){oeffneKbEintrag(da.id);return}
-    const e={id:uid(),d,inhalt:'',referate:'',ha:'',sonst:''};S.kbuch[NK].push(e);save();oeffneKbEintrag(e.id)},
+  kbNeu:()=>{const d=kbVorschlagDatum(),
+    e={id:uid(),d,inhalt:'',referate:'',ha:'',sonst:''};S.kbuch[NK].push(e);save();oeffneKbEintrag(e.id)},
   kbOeffnen:d=>oeffneKbEintrag(d.id),
   kbWeg:d=>{if(!confirm('Eintrag dieser Stunde löschen?'))return;S.kbuch[NK]=S.kbuch[NK].filter(x=>x.id!==d.id);save();zu()},
   kbDruck:()=>druckeTagebuch(),
