@@ -63,6 +63,7 @@ h3{font-size:16px;margin:16px 0 8px}
 .termin .tk{display:flex;flex-direction:column;gap:4px;min-width:112px;font-size:14px}
 .termin .tk .kl{align-self:flex-start}
 .termin .tt{flex:1;min-width:0}
+.kb{display:block;width:100%;text-align:left}.kb.heute{border-color:var(--acc,#1f5f8b)}.kbf{margin-top:6px;white-space:normal}.kbl{display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
 .notizvor{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:9px 14px;font-weight:600;min-height:42px}
 .btn.prim{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
@@ -285,10 +286,10 @@ function neuerStand(){return{
   lb:LB.map(x=>({...x})),
   themen:THEMEN_START.map(([lb,titel,std])=>({id:uid(),lb,titel,std})),
   stunden:[],tagebuch:{},
-  schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},
+  schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},kbuch:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
-const APP_VERSION='18';
+const APP_VERSION='19';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -341,17 +342,17 @@ const mittel=a=>{a=a.filter(x=>x!=null);return a.length?a.reduce((x,y)=>x+y,0)/a
 function anzahl(sid,hj){const n=S.noten[sid]||{};const c=p=>SLOTS.filter(sl=>sl.startsWith(p)&&n[hj+'-'+sl]).length;return `KA ${c('KA')}/2 · mdl. ${c('M')}/2`}
 
 /* ---------- Oberfläche ---------- */
-const TABS=[['sitzplan','Sitzplan'],['heute','Heute'],['woche','Woche'],['plan','Jahresplan'],['stunden','Stunden'],['noten','Noten'],['listen','Listen'],['sichern','Sichern']];
+const TABS=[['sitzplan','Sitzplan'],['tagebuch','Tagebuch'],['heute','Heute'],['woche','Woche'],['plan','Jahresplan'],['stunden','Stunden'],['noten','Noten'],['listen','Listen'],['sichern','Sichern']];
 let NEDIT=null;
 let TAB='sitzplan', WOFF=0, NK='7d', NANS='tabelle', SFILTER='';
 try{TAB=localStorage.getItem('u26tab')||'sitzplan'}catch{}
-const REDUZIERT=['noten','listen','sitzplan','sichern'];
+const REDUZIERT=['noten','listen','sitzplan','tagebuch','sichern'];
 const sichtbar=()=>S.alleReiter?TABS:TABS.filter(([id])=>REDUZIERT.includes(id));
 function render(){
   if(!sichtbar().some(([id])=>id===TAB))TAB=sichtbar()[0][0];
   $('#nav').innerHTML=sichtbar().map(([id,l])=>`<button data-act="tab" data-tab="${id}" class="${TAB===id?'on':''}">${l}</button>`).join('');
   $('#kopfinfo').textContent=fmtL(heute());
-  $('#main').innerHTML=({heute:vHeute,woche:vWoche,plan:vPlan,stunden:vStunden,noten:vNoten,listen:vListen,sitzplan:vSitzplan,sichern:vSichern}[TAB]||vHeute)();
+  $('#main').innerHTML=({heute:vHeute,woche:vWoche,plan:vPlan,stunden:vStunden,noten:vNoten,listen:vListen,sitzplan:vSitzplan,tagebuch:vTagebuch,sichern:vSichern}[TAB]||vHeute)();
 }
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('an');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('an'),2200)}
 
@@ -663,7 +664,7 @@ const beitrTxt=sid=>{const b=beitr(sid),p=b.filter(x=>x==='+').length,m=b.filter
 const HJ_ENDE='2027-02-19';
 const aktHJ=()=>heute()<=HJ_ENDE?1:2;
 const beitrNote=b=>Math.min(6,8-b.filter(x=>x==='+').length);
-function migriere(){S.beitraege??={};S.beitrAuto??={};S.mDaten??={};S.listen??={};S.sitzplan??={};for(const k of KL){S.listen[k]??=[];S.sitzplan[k]??={plaetze:{}};S.sitzplan[k].lehrersicht=true;sortiere(k)}}
+function migriere(){S.beitraege??={};S.beitrAuto??={};S.mDaten??={};S.listen??={};S.sitzplan??={};S.kbuch??={};for(const k of KL){S.listen[k]??=[];S.kbuch[k]??=[];S.sitzplan[k]??={plaetze:{}};S.sitzplan[k].lehrersicht=true;sortiere(k)}}
 const liste=()=>S.listen[NK].find(l=>l.id===LID);
 const wert=(l,sid,sp)=>l.werte[sid]?.[sp];
 const leer=(sp,v)=>sp.typ==='haken'?!v:(v==null||v==='');
@@ -736,6 +737,48 @@ function druckeListe(){
   pdfSeitenzahlen(d);
   pdfAusgeben(d,`${l.titel.replace(/[^A-Za-z0-9ÄÖÜäöüß-]+/g,'_')}_${NK}.pdf`);
 }
+/* ----- Tagebuch je Klasse: Datum, Inhalt, Referate, Hausaufgaben, Sonstiges ----- */
+const KB_FELDER=[['inhalt','Inhalt der Stunde','Was wurde gemacht, wie weit sind wir gekommen …'],['referate','Referatsthemen','Thema – wer – wann'],['ha','Hausaufgaben','z. B. Buch S. 34 Nr. 2, bis Donnerstag'],['sonst','Sonstiges','Material mitbringen, Elternbrief, Termine …']];
+const kbEintrag=id=>S.kbuch[NK].find(e=>e.id===id);
+const kbLeer=e=>KB_FELDER.every(([f])=>!(e[f]||'').trim());
+const kbSortiert=()=>S.kbuch[NK].slice().sort((a,b)=>b.d.localeCompare(a.d));
+const kbStd=(k,d)=>TERMINE[k].find(t=>t.d===d)?.std;
+const mehrzeilig=t=>esc(t).replace(/\n/g,'<br>');
+function kbVorschlagDatum(){
+  const h=heute(),L=TERMINE[NK],hat=d=>S.kbuch[NK].some(e=>e.d===d);
+  if(L.some(t=>t.d===h))return h;
+  const vor=L.filter(t=>t.d<h&&t.d>=addDays(h,-7)&&!hat(t.d)).at(-1);if(vor)return vor.d;
+  return L.find(t=>t.d>h)?.d||h;
+}
+function vTagebuch(){
+  const banner=S.alleReiter?'':sicherungsBanner(),E=kbSortiert();
+  const letzteHA=E.find(e=>e.d<=heute()&&(e.ha||'').trim()),ref=E.filter(e=>(e.referate||'').trim()).reverse();
+  const karte=e=>{const std=kbStd(NK,e.d),teile=KB_FELDER.filter(([f])=>(e[f]||'').trim()).map(([f,l])=>`<div class="kbf"><span class="kbl">${l}</span>${mehrzeilig(e[f])}</div>`).join('');
+    return `<button class="card kb ${e.d===heute()?'heute':''}" data-act="kbOeffnen" data-id="${e.id}"><div class="row"><b>${fmtK(e.d)}${e.d.slice(0,4)!==heute().slice(0,4)?e.d.slice(2,4):''}</b><span class="muted small">${std?std+'. Std. · ':''}KW ${kw(e.d)}</span></div>${teile||'<div class="muted small">noch leer</div>'}</button>`};
+  return banner+`<div class="row" style="flex-wrap:wrap">${klassenSeg()}<div class="btns" style="margin:0"><button class="btn prim" data-act="kbNeu">+ Stunde</button><button class="btn" data-act="kbDruck">PDF</button></div></div>
+  ${letzteHA?`<div class="card" style="margin-top:12px"><div class="muted small">Zuletzt aufgegeben (${fmtK(letzteHA.d)})</div><div>${mehrzeilig(letzteHA.ha)}</div></div>`:''}
+  ${ref.length?`<details class="card" style="margin-top:12px"><summary><b>Referatsthemen ${NK}</b> <span class="badge">${ref.length}</span></summary><div class="small" style="margin-top:8px">${ref.map(e=>`<div class="kbf"><span class="kbl">${fmtK(e.d)}</span>${mehrzeilig(e.referate)}</div>`).join('')}</div></details>`:''}
+  <div class="liste" style="margin-top:12px">${E.map(karte).join('')||`<p class="muted">Noch keine Einträge für ${NK}. Mit „+ Stunde“ beginnen – das Datum der nächsten bzw. heutigen Stunde ist vorbelegt.</p>`}</div>`;
+}
+function oeffneKbEintrag(id){
+  modal(()=>{const e=kbEintrag(id);if(!e)return '<p>Eintrag gelöscht.</p>';const std=kbStd(NK,e.d);
+    return `<h2>${NK} · Unterrichtsstunde</h2>
+    <label>Datum<input type="date" data-f="kbDatum" data-id="${id}" value="${e.d}"></label>
+    <p class="hint">${fmtL(e.d)}${std?` · ${std}. Stunde laut Stundenplan`:frei(e.d)?` · ${frei(e.d)[2]}`:' · laut Stundenplan kein BwR in '+NK}</p>
+    ${KB_FELDER.map(([f,l,ph])=>`<label>${l}<textarea data-f="kbFeld" data-feld="${f}" data-id="${id}" placeholder="${ph}"${f==='inhalt'?'':' style="min-height:60px"'}>${esc(e[f]||'')}</textarea></label>`).join('')}
+    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn gefahr" data-act="kbWeg" data-id="${id}">Löschen</button></div>`;
+  },()=>{const e=kbEintrag(id);if(e&&kbLeer(e)){S.kbuch[NK]=S.kbuch[NK].filter(x=>x.id!==id);save()}$('#modal').hidden=true;$('#modal').innerHTML='';render()});
+}
+function druckeTagebuch(){
+  const E=kbSortiert().reverse();if(!E.length){toast('Noch keine Einträge');return}
+  const d=neuesPdf(true),y=pdfKopf(d,`BwR ${NK} · Tagebuch`,`Stand ${fmtD(heute())} · ${E.length} Stunden`);
+  d.autoTable({...TAB_STIL,startY:y,head:[['Datum',...KB_FELDER.map(([,l])=>l)]],
+    body:E.map(e=>[fmtK(e.d)+e.d.slice(2,4),...KB_FELDER.map(([f])=>e[f]||'')].map(pdfTxt)),
+    columnStyles:{0:{cellWidth:22},1:{cellWidth:90}},rowPageBreak:'avoid'});
+  pdfSeitenzahlen(d);
+  pdfAusgeben(d,`Tagebuch_${NK}_${heute()}.pdf`);
+}
+
 /* ----- PDF-Export (jsPDF, offline mitgeliefert) ----- */
 const pdfTxt=t=>String(t??'').replace(/[−‐‑‒—]/g,'-').replace(/✓/g,'x').replace(/Σ/g,'Summe').replace(/­/g,'');
 function neuesPdf(quer){const d=new window.jspdf.jsPDF({orientation:quer?'landscape':'portrait',unit:'mm',format:'a4'});d.setFont('helvetica');return d}
@@ -804,7 +847,7 @@ async function speicherInfo(){
   let t=[];
   try{const p=await navigator.storage?.persisted?.();t.push(p?'Dauerhafter Speicher: aktiv':'Dauerhafter Speicher: nicht bestätigt')}catch{}
   try{const e=await navigator.storage?.estimate?.();if(e)t.push(`belegt ca. ${(e.usage/1048576).toFixed(1)} MB`)}catch{}
-  t.push(`${S.stunden.length} Stunden · ${Object.keys(S.tagebuch).length} Tagebucheinträge · ${KL.map(k=>S.schueler[k].length+' in '+k).join(', ')}`);
+  t.push(`${S.stunden.length} Stunden · ${KL.map(k=>S.kbuch[k].length).reduce((a,b)=>a+b,0)} Tagebucheinträge · ${KL.map(k=>S.schueler[k].length+' in '+k).join(', ')}`);
   el.textContent=t.join(' · ');
 }
 async function sichern(){
@@ -964,6 +1007,11 @@ const ACT={
     sp().plaetze={};L.slice(0,pl.length).forEach((s,i)=>sp().plaetze[pl[i]]=s.id);SPSEL=null;save();render()},
   spDruck:()=>druckeSitzplan(),
   dlOk:()=>{S.letzteSicherung=new Date().toISOString();save();setTimeout(()=>toast('Download gestartet – bitte nach ByCS Drive verschieben'),300)},
+  kbNeu:()=>{const d=kbVorschlagDatum(),da=S.kbuch[NK].find(e=>e.d===d);if(da){oeffneKbEintrag(da.id);return}
+    const e={id:uid(),d,inhalt:'',referate:'',ha:'',sonst:''};S.kbuch[NK].push(e);save();oeffneKbEintrag(e.id)},
+  kbOeffnen:d=>oeffneKbEintrag(d.id),
+  kbWeg:d=>{if(!confirm('Eintrag dieser Stunde löschen?'))return;S.kbuch[NK]=S.kbuch[NK].filter(x=>x.id!==d.id);save();zu()},
+  kbDruck:()=>druckeTagebuch(),
   lNeu:()=>oeffneNeueListe(),
   lAnlegen:()=>{const t=$('#ltitel').value.trim();if(!t){toast('Bitte Titel eingeben');return}
     const l={id:uid(),titel:t,datum:$('#ldatum').value,spalten:[{id:uid(),name:$('#spname').value.trim()||'Spalte 1',typ:$('#sptyp').value}],werte:{}};
@@ -997,6 +1045,7 @@ const IN={
   tNotiz:el=>{uebernimmVorschlag(el.dataset.key);setTb(el.dataset.key,{notiz:el.value})},
   sFeld:el=>{stunde(el.dataset.id)[el.dataset.feld]=el.value;save()},
   thTitel:el=>{thema(el.dataset.id).titel=el.value;save()},
+  kbFeld:el=>{kbEintrag(el.dataset.id)[el.dataset.feld]=el.value;save()},
   lText:el=>setWert(el.dataset.sid,el.dataset.sp,el.value),
   lTitel:el=>{liste().titel=el.value;save()},
   sName:el=>{S.schueler[NK].find(x=>x.id===el.dataset.id).name=el.value;save()},
@@ -1022,6 +1071,7 @@ const CH={
     if(v!=null&&isNaN(v)){el.value='';setWert(el.dataset.sid,el.dataset.sp,null);return}
     setWert(el.dataset.sid,el.dataset.sp,v);el.value=v==null?'':v.toFixed(2).replace('.',',')},
   lDatum:el=>{liste().datum=el.value;save()},
+  kbDatum:el=>{if(!el.value)return;kbEintrag(el.dataset.id).d=el.value;save();refreshModal()},
   lDatWert:el=>setWert(el.dataset.sid,el.dataset.sp,el.value||null),
   lOffen:el=>{LOFFEN=el.checked;render()},
   sNach:()=>{sortiere(NK);save();refreshModal()},
