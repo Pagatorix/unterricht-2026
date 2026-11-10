@@ -152,6 +152,13 @@ td:first-child,th:first-child{text-align:left}
 .pz .zt{font-variant-numeric:tabular-nums;color:var(--muted);min-width:48px;font-size:14px}
 .pz .ptx{flex:1;white-space:pre-wrap;min-width:0}
 .pz .icon{width:32px;height:32px;flex:none}
+.stp{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.stp button{display:flex;gap:10px;align-items:flex-start;text-align:left;width:100%;min-height:40px;padding:8px 10px;border:1px solid var(--line,#ccc);border-radius:8px;background:var(--bg);color:inherit;font:inherit;cursor:pointer}
+.stp button.e1{margin-left:28px;width:calc(100% - 28px);font-size:15px}
+.stp button.e0{font-weight:600}
+.stp button .kx{flex:none;width:22px;height:22px;border:2px solid var(--muted);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1}
+.stp button.ok{background:var(--ok-soft)}
+.stp button.ok .kx{border-color:var(--ok);background:var(--ok);color:#fff}
 .krit td{text-align:left}.krit td.num,.krit th.num{text-align:center}
 .krit input.g{width:46px;height:42px;text-align:center;padding:0;font-size:20px;font-weight:700}
 .refnote{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
@@ -308,7 +315,7 @@ function neuerStand(){return{
   schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},kbuch:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
-const APP_VERSION='22';
+const APP_VERSION='23';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -638,13 +645,72 @@ const REF_KRIT=[
   ['medien','Medien','Folien/Plakat/Handout lesbar und sinnvoll eingesetzt',15],
   ['fragen','Rückfragen','Fragen sicher und fachlich richtig beantwortet',10],
 ];
+/* Stichpunktlisten zum Abhaken während des Referats (Ebene 0 = Hauptpunkt, 1 = Unterpunkt) */
+const REF_LISTEN=[
+  {id:'gdw8',thema:'Geschichte der Wirtschaft, Kapitel 8: Die Römer und ihr Recht',punkte:[
+    [0,'Athen verfällt durch Machtmissbrauch und Kriege gegen andere griechische Städte; Rom übernimmt das Erbe'],
+    [0,'Rom vereint erstmals und einmalig das ganze Mittelmeer politisch'],
+    [1,'befestigte Straßen machen den Transport über weite Strecken billiger'],
+    [1,'Städtegründungen, die heute noch bestehen (Köln, Regensburg, Augsburg, Trier), werden Handelsplätze'],
+    [1,'Germanen und Kelten lernen Wein- und Obstbau; neue Pflanzen: Birne, Kirsche, Pfirsich, Rettich, Kohl'],
+    [0,'Einheitliches Geld im ganzen Reich: Silbermünzen (Denarius, Drachme), später Goldmünzen; „Dinar“ kommt von Denarius'],
+    [0,'„Globalisierte“ Wirtschaft rund ums Mittelmeer: Handel ohne Grenzen, nur die Natur setzt Grenzen'],
+    [0,'Wichtigster Beitrag: das römische Recht'],
+    [1,'um 450 v. Chr. schriftlich festgehalten: Privatrecht, öffentliches Recht, Strafrecht'],
+    [1,'Rechtsgelehrte entwickeln es an typischen Fällen weiter'],
+    [1,'Verträge, allgemein gültige Gesetze und eine Staatsmacht, die sie durchsetzt, ermöglichen Handel und Wohlstand'],
+    [1,'wirkt in manchen Staaten bis heute fort'],
+    [0,'Untergang Roms 476 n. Chr. (Odoaker setzt den letzten Kaiser ab)'],
+    [1,'Fernhandel bricht zusammen, kein einheitliches Geld mehr, Staaten bekriegen sich'],
+    [1,'Erholung dauert Jahrhunderte'],
+    [0,'Freiheit und Privateigentum gehen verloren'],
+    [1,'früher freie Bauern, Land für ausgediente Legionäre'],
+    [1,'wegen der Kriegskosten schränken die Kaiser die Freiheit der Bauern ein'],
+    [1,'Mittelalter: Leibeigene mit Frondiensten und Abgaben, dürfen Hof und Dorf nicht verlassen'],
+    [1,'Leibeigenschaft endet in Deutschland erst um 1800, in Russland 1863'],
+  ]},
+  {id:'gdw9',thema:'Geschichte der Wirtschaft, Kapitel 9: Sklaverei und ein neues Verständnis von Arbeit',punkte:[
+    [0,'Freiheit, Recht und Eigentum gelten in der Antike nur für wenige freie Bürger; die Arbeit machen Sklaven'],
+    [0,'Sklaverei ist im Altertum selbstverständlich'],
+    [1,'Kriegsgefangene werden als Sklaven verkauft; manche Kriege nur zum Sklavenraub'],
+    [1,'Sklaven auf Feldern und in Bergwerken, aber auch als Köche, Lehrer, Verwalter; größte Bank Athens von einem Sklaven geleitet'],
+    [1,'Athen: vermutlich bis zu 400 000 Sklaven, etwa fünf je freiem Bürger'],
+    [1,'Eltern verkaufen Kinder; wer Schulden nicht zahlt, gerät in Schuldknechtschaft'],
+    [0,'Spartakus-Aufstand 73–71 v. Chr.'],
+    [1,'Gladiator aus Thrakien flieht mit 70 Gefährten, stellt ein Sklavenheer auf'],
+    [1,'besiegt die Römer mehrmals, unterliegt erst nach zwei Jahren'],
+    [1,'will nicht die Sklaverei abschaffen, sondern nur die eigene Freiheit'],
+    [0,'Sklaverei prägt das Denken: Arbeit wird verachtet'],
+    [1,'Cicero: Lohnarbeit, Handwerk, Zwischenhandel, Zöllner, Wucherer, Fleischer, Fischer, Köche sind „niedrig“'],
+    [1,'halbwegs vertretbar nur Arzt, Architekt, Erzieher; würdig nur ein Landgut, bearbeitet von Sklaven'],
+    [0,'Wende durch den Untergang Roms (4./5. Jh.): Verfall und Not, Halt im Christentum'],
+    [0,'Benedikt von Nursia (480–544), Kloster Monte Cassino'],
+    [1,'„Ora et labora“: Arbeit verherrlicht Gott und ist keine Sklavenarbeit mehr'],
+    [1,'Mönche als „Sklaven Gottes“: auch freie Männer und Adlige arbeiten'],
+    [1,'alle sind gleich; „Müßiggang ist der Seele Feind“'],
+    [0,'Wirkung der Klöster'],
+    [1,'strenge Tageseinteilung: Vorbild für Arbeitsdisziplin und Zeiteinteilung'],
+    [1,'neue Einstellung zu Zeit und Wirtschaft; ohne diese Vorarbeit vielleicht keine Fabriken'],
+    [1,'Rückzug in die Zelle: der einzelne Mensch gewinnt an Bedeutung gegenüber Staat und Gemeinschaft'],
+  ]},
+];
+const stpZahl=r=>`${(r.punkte||[]).filter(p=>p.ok).length} von ${(r.punkte||[]).length}`;
+function stpHtml(sid,rid,r){
+  const D=`data-sid="${sid}" data-rid="${rid}"`;
+  if(!(r.punkte||[]).length)return `<div class="row" style="justify-content:flex-start;flex-wrap:wrap;gap:8px"><select id="refListe" aria-label="Stichpunktliste">${REF_LISTEN.map(l=>`<option value="${l.id}">${esc(l.thema)}</option>`).join('')}</select>
+    <button class="btn" data-act="refListeLaden" ${D}>Liste laden</button></div>
+    <p class="hint">Die geladenen Stichpunkte während des Vortrags antippen, sobald sie genannt werden.</p>`;
+  return `<p class="small"><b id="refStpZahl">${stpZahl(r)}</b> Stichpunkten genannt${r.liste?` · <span class="muted">${esc(r.liste)}</span>`:''}</p>
+    <div class="stp">${r.punkte.map(p=>`<button class="e${p.e} ${p.ok?'ok':''}" role="checkbox" aria-checked="${!!p.ok}" data-act="refPunkt" ${D} data-pid="${p.id}"><span class="kx">${p.ok?'✓':''}</span><span>${esc(p.x)}</span></button>`).join('')}</div>
+    <div class="btns"><button class="btn klein" data-act="refListeWeg" ${D}>Liste entfernen</button></div>`;
+}
 let REF=null, RTIMER=null;
 const refVon=(sid,rid)=>(S.referate[sid]||[]).find(r=>r.id===rid);
 const refSek=r=>(r.sek||0)+(r.lauf?(Date.now()-r.lauf)/1000:0);
 const mmss=s=>{s=Math.floor(s);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`};
 function refVorschlag(r){let s=0,w=0;for(const[k,,,g] of REF_KRIT){const v=r.krit?.[k];if(v){s+=v*g;w+=g}}return w?s/w:null}
 const refNote=r=>r.note||(refVorschlag(r)!=null?Math.round(refVorschlag(r)):null);
-const refLeer=r=>!r.thema?.trim()&&!r.protokoll.length&&!Object.keys(r.krit).length&&!r.note&&!r.bem?.trim()&&!refSek(r);
+const refLeer=r=>!r.thema?.trim()&&!(r.punkte||[]).length&&!r.protokoll.length&&!Object.keys(r.krit).length&&!r.note&&!r.bem?.trim()&&!refSek(r);
 const pzArt=x=>x[0]==='+'?'plus':x[0]==='-'||x[0]==='−'?'minus':x[0]==='?'?'frage':'';
 const pzHtml=(sid,rid,p)=>`<div class="pz ${pzArt(p.x)}" data-pz="${p.id}"><span class="zt">${esc(p.t)}</span><span class="ptx">${esc(p.x)}</span><button class="icon" data-act="refPzWeg" data-sid="${sid}" data-rid="${rid}" data-pid="${p.id}" aria-label="Zeile löschen" tabindex="-1">✕</button></div>`;
 function refSlot(sid,r){if(r.c)return r.c;const h=r.d<=HJ_ENDE?1:2,n=S.noten[sid]||{};return [h+'-M1',h+'-M2'].find(c=>!n[c])||h+'-M2'}
@@ -685,6 +751,8 @@ function oeffneReferat(sid,rid){
     <input id="refZeile" ${D} placeholder="Beobachtung tippen und mit Enter festhalten" autocomplete="off" autocorrect="off" enterkeyhint="done" style="width:100%">
     <p class="hint">Zeilenanfang <b>+</b> gelungen · <b>-</b> Schwäche · <b>?</b> Frage. <kbd>Enter</kbd> hält die Zeile mit Redezeit fest und startet die Uhr. <kbd>⌥</kbd> + <kbd>Leertaste</kbd> hält die Uhr an bzw. startet sie.</p>
     <div class="prot" id="refProt">${r.protokoll.map(p=>pzHtml(sid,rid,p)).join('')}</div>
+    <h3>Stichpunkte</h3>
+    <div id="refStp">${stpHtml(sid,rid,r)}</div>
     <h3>Bewertung</h3>
     <div class="tabwrap"><table class="krit"><thead><tr><th>Kriterium</th><th class="num">Gewicht</th><th class="num">Note</th></tr></thead><tbody>
     ${REF_KRIT.map(([k,l,h,g])=>`<tr><td><b>${l}</b><div class="muted small">${h}</div></td><td class="num muted">${g} %</td><td class="num"><input class="g" inputmode="numeric" maxlength="1" autocomplete="off" data-f="refKrit" data-k="${k}" ${D} value="${r.krit[k]||''}" aria-label="${l}"></td></tr>`).join('')}</tbody></table></div>
@@ -727,6 +795,14 @@ function druckeReferat(sid,rid){
   if(r.bem?.trim()){
     d.setFont('helvetica','bold');d.setFontSize(12);d.text('Bemerkung',14,y);
     d.setFont('helvetica','normal');d.setFontSize(10);const z=d.splitTextToSize(pdfTxt(r.bem),d.internal.pageSize.getWidth()-28);d.text(z,14,y+6);y+=8+z.length*4.6;
+  }
+  if((r.punkte||[]).length){
+    if(y>d.internal.pageSize.getHeight()-30){d.addPage();y=18}
+    d.setFont('helvetica','bold');d.setFontSize(12);d.text(`Stichpunkte (${stpZahl(r)} genannt)`,14,y);
+    d.autoTable({...TAB_STIL,startY:y+3,head:[['Stichpunkt','genannt']],body:r.punkte.map(p=>[(p.e?'    - ':'')+p.x,p.ok?'x':''].map(pdfTxt)),
+      columnStyles:{1:{halign:'center',cellWidth:22}},rowPageBreak:'avoid',
+      didParseCell:c=>{if(c.section==='body'&&!r.punkte[c.row.index].e)c.cell.styles.fontStyle='bold'}});
+    y=d.lastAutoTable.finalY+9;
   }
   if(r.protokoll.length){
     if(y>d.internal.pageSize.getHeight()-30){d.addPage();y=18}
@@ -1135,6 +1211,15 @@ const ACT={
   refOeffnen:d=>oeffneReferat(d.sid,d.rid),
   refUhr:d=>{const r=refVon(d.sid,d.rid);refUhr(r,!r.lauf);$('#refZeile')?.focus()},
   refUhrNull:d=>{const r=refVon(d.sid,d.rid);if(refSek(r)&&!confirm('Redezeit auf 0:00 zurücksetzen?'))return;r.lauf=null;r.sek=0;save();refAnzeige()},
+  refListeLaden:d=>{const r=refVon(d.sid,d.rid),l=REF_LISTEN.find(x=>x.id===$('#refListe').value);if(!r||!l)return;
+    r.punkte=l.punkte.map(([e,x])=>({id:uid(),e,x,ok:false}));r.liste=l.thema;
+    if(!r.thema?.trim()){r.thema=l.thema;const t=$('#refThema');if(t)t.value=l.thema}
+    save();$('#refStp').innerHTML=stpHtml(d.sid,d.rid,r)},
+  refPunkt:(d,b)=>{const r=refVon(d.sid,d.rid),p=r?.punkte?.find(x=>x.id===d.pid);if(!p)return;
+    p.ok=!p.ok;save();b.classList.toggle('ok',p.ok);b.setAttribute('aria-checked',p.ok);b.querySelector('.kx').textContent=p.ok?'✓':'';
+    $('#refStpZahl').textContent=stpZahl(r)},
+  refListeWeg:d=>{const r=refVon(d.sid,d.rid);if(r.punkte.some(p=>p.ok)&&!confirm('Stichpunktliste mit allen Häkchen entfernen?'))return;
+    r.punkte=[];r.liste='';save();$('#refStp').innerHTML=stpHtml(d.sid,d.rid,r)},
   refPzWeg:d=>{const r=refVon(d.sid,d.rid);r.protokoll=r.protokoll.filter(p=>p.id!==d.pid);save();$(`[data-pz="${d.pid}"]`)?.remove()},
   refUebern:d=>{const r=refVon(d.sid,d.rid),c=$('#refSlot').value,no=refNote(r),n=(S.noten[d.sid]??={});
     if(!no)return;
