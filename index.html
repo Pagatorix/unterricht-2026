@@ -140,6 +140,23 @@ td:first-child,th:first-child{text-align:left}
 .vert div span{position:absolute;top:-18px;left:0;right:0;text-align:center;font-size:12px;color:var(--ink)}
 .vertl{display:flex;gap:6px}.vertl span{flex:1;text-align:center;font-size:12px;color:var(--muted)}
 .kpi{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+.refkopf{display:grid;grid-template-columns:1fr 170px;gap:10px}
+@media(max-width:520px){.refkopf{grid-template-columns:1fr}}
+.uhrbox{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--bg);margin-top:12px}
+.uhr{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+.uhr.ueber{color:var(--bad)}
+.uhrbox input{width:64px;padding:4px 6px}
+.prot{display:flex;flex-direction:column;gap:4px;max-height:280px;overflow-y:auto;margin-top:8px}
+.pz{display:flex;gap:8px;align-items:center;padding:4px 4px 4px 10px;border-radius:8px;background:var(--bg)}
+.pz.plus{background:var(--ok-soft)}.pz.minus{background:var(--bad-soft)}.pz.frage{background:var(--acc-soft)}
+.pz .zt{font-variant-numeric:tabular-nums;color:var(--muted);min-width:48px;font-size:14px}
+.pz .ptx{flex:1;white-space:pre-wrap;min-width:0}
+.pz .icon{width:32px;height:32px;flex:none}
+.krit td{text-align:left}.krit td.num,.krit th.num{text-align:center}
+.krit input.g{width:46px;height:42px;text-align:center;padding:0;font-size:20px;font-weight:700}
+.refnote{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
+.refnote input.g{width:54px;height:48px;text-align:center;padding:0;font-size:24px;font-weight:700}
+kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 5px;font:12px/1.5 inherit;background:var(--card)}
 #modal{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:20;display:flex;align-items:flex-start;justify-content:center;padding:calc(20px + env(safe-area-inset-top)) 12px 20px;overflow-y:auto}
 #modal[hidden]{display:none}
 .mbox{background:var(--card);border-radius:14px;padding:18px;width:100%;max-width:760px;position:relative}
@@ -291,7 +308,7 @@ function neuerStand(){return{
   schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},kbuch:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
-const APP_VERSION='21';
+const APP_VERSION='22';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -593,6 +610,12 @@ function oeffneSchueler(id){
     <table><thead><tr><th></th>${SLOTS.map(sl=>`<th>${slotName(sl)}</th>`).join('')}<th>Ø</th><th>Stand</th></tr></thead>
     <tbody>${[1,2].map(h=>`<tr><td>${h}. HJ</td>${SLOTS.map(sl=>`<td>${n[h+'-'+sl]||'–'}${mDatum(id,h+'-'+sl)?`<div class="small muted">${fmtD(mDatum(id,h+'-'+sl)).slice(0,6)}</div>`:''}</td>`).join('')}<td><b>${f2(schnitt(id,h))}</b></td><td class="small">${anzahl(id,h)}</td></tr>`).join('')}
     <tr><td colspan="5"><b>Schuljahr</b></td><td><b>${f2(schnitt(id,0))}</b></td><td></td></tr></tbody></table>
+    <h3>Referate</h3>
+    <div class="liste">${(S.referate[id]||[]).slice().sort((a,b)=>b.d.localeCompare(a.d)).map(r=>{const no=refNote(r);
+      return `<button class="card termin" style="min-height:0" data-act="refOeffnen" data-sid="${id}" data-rid="${r.id}"><div class="tt"><b>${esc(r.thema||'(ohne Thema)')}</b>
+      <div class="muted small">${fmtD(r.d)} · ${mmss(refSek(r))} Min. · ${r.protokoll.length} Protokollzeile${r.protokoll.length===1?'':'n'}${r.c?` · eingetragen als ${slotName(r.c.slice(2))} (${r.c[0]}. HJ)`:''}</div></div>
+      <span class="pill ${no?'ok':'st-offen'}">${no?'Note '+no:'offen'}</span></button>`}).join('')}</div>
+    <div class="btns"><button class="btn prim" data-act="refNeu" data-id="${id}">🎤 Referat erfassen</button></div>
     <h3>Unterrichtsbeiträge <span class="muted small">${beitrTxt(id)}</span></h3>
     <div class="beitr">${beitr(id).map((v,i)=>`<button class="bfeld ${v==='+'?'plus':v==='-'?'minus':''}" data-act="beitr" data-id="${id}" data-i="${i}" aria-label="Beitrag ${i+1}">${v==='+'?'+':v==='-'?'−':''}</button>`).join('')}
       <button class="btn klein" data-act="beitrLeeren" data-id="${id}">Leeren</button></div>
@@ -607,6 +630,122 @@ function oeffneSchueler(id){
     <div class="liste" style="margin-top:10px">${(s.notizen||[]).slice().sort((a,b)=>b.d.localeCompare(a.d)).map(x=>`<div class="card notiz"><div class="row"><b class="small">${fmtL(x.d)}</b><span><button class="btn klein" data-act="notizEdit" data-nid="${x.id}">Bearbeiten</button> <button class="icon" data-act="notizWeg" data-id="${id}" data-nid="${x.id}" aria-label="löschen">🗑</button></span></div><div style="white-space:pre-wrap;margin-top:4px">${esc(x.t)}</div></div>`).join('')||'<p class="muted small">Noch keine Notizen.</p>'}</div>
     <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="drucken" data-id="${id}">Notenbild als PDF</button><label class="bemschalter"><input type="checkbox" data-f="druckBem" ${S.druckBem!==false?'checked':''}> mit Bemerkungen</label></div>`});
 }
+/* ----- Referat: Redezeit, Protokoll, Bewertung (Tastatur) ----- */
+const REF_KRIT=[
+  ['inhalt','Inhalt','fachlich richtig, vollständig, eigene Beispiele',35],
+  ['aufbau','Aufbau','Einstieg, roter Faden, Schluss',15],
+  ['vortrag','Vortrag','frei gesprochen, verständlich, Blickkontakt, Tempo',25],
+  ['medien','Medien','Folien/Plakat/Handout lesbar und sinnvoll eingesetzt',15],
+  ['fragen','Rückfragen','Fragen sicher und fachlich richtig beantwortet',10],
+];
+let REF=null, RTIMER=null;
+const refVon=(sid,rid)=>(S.referate[sid]||[]).find(r=>r.id===rid);
+const refSek=r=>(r.sek||0)+(r.lauf?(Date.now()-r.lauf)/1000:0);
+const mmss=s=>{s=Math.floor(s);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`};
+function refVorschlag(r){let s=0,w=0;for(const[k,,,g] of REF_KRIT){const v=r.krit?.[k];if(v){s+=v*g;w+=g}}return w?s/w:null}
+const refNote=r=>r.note||(refVorschlag(r)!=null?Math.round(refVorschlag(r)):null);
+const refLeer=r=>!r.thema?.trim()&&!r.protokoll.length&&!Object.keys(r.krit).length&&!r.note&&!r.bem?.trim()&&!refSek(r);
+const pzArt=x=>x[0]==='+'?'plus':x[0]==='-'||x[0]==='−'?'minus':x[0]==='?'?'frage':'';
+const pzHtml=(sid,rid,p)=>`<div class="pz ${pzArt(p.x)}" data-pz="${p.id}"><span class="zt">${esc(p.t)}</span><span class="ptx">${esc(p.x)}</span><button class="icon" data-act="refPzWeg" data-sid="${sid}" data-rid="${rid}" data-pid="${p.id}" aria-label="Zeile löschen" tabindex="-1">✕</button></div>`;
+function refSlot(sid,r){if(r.c)return r.c;const h=r.d<=HJ_ENDE?1:2,n=S.noten[sid]||{};return [h+'-M1',h+'-M2'].find(c=>!n[c])||h+'-M2'}
+/* eingetragene Note folgt Änderungen am Referat */
+function refSync(sid,r){if(!r.c)return;const no=refNote(r),n=(S.noten[sid]??={}),md=(S.mDaten[sid]??={});if(no){n[r.c]=no;md[r.c]=r.d}else{delete n[r.c];delete md[r.c]}}
+function refStatusHtml(sid,r){
+  const no=refNote(r);
+  if(r.c)return `<span class="pill ok">Eingetragen als ${slotName(r.c.slice(2))} (${r.c[0]}. HJ) am ${fmtD(r.d)}: Note ${no??'–'}</span> <button class="btn klein" data-act="refLoesen" data-sid="${sid}" data-rid="${r.id}">Eintrag zurücknehmen</button>
+    <p class="hint">Änderungen an der Bewertung werden automatisch in die Notentabelle übernommen.</p>`;
+  const sl=refSlot(sid,r);
+  return `<div class="row" style="justify-content:flex-start;flex-wrap:wrap"><select id="refSlot">${[1,2].flatMap(h=>['M1','M2'].map(m=>{const c=h+'-'+m,v=S.noten[sid]?.[c];return `<option value="${c}" ${c===sl?'selected':''}>${slotName(m)} · ${h}. HJ${v?` (belegt: ${v})`:''}</option>`})).join('')}</select>
+    <button class="btn" data-act="refUebern" data-sid="${sid}" data-rid="${r.id}" ${no?'':'disabled'}>In die Notentabelle eintragen</button></div>
+    ${no?'':'<p class="hint">Erst bewerten, dann eintragen.</p>'}`;
+}
+function refAnzeige(){
+  const r=REF&&refVon(REF.sid,REF.rid),el=$('#refUhr');
+  if(!r||!el){clearInterval(RTIMER);RTIMER=null;return}
+  const s=refSek(r);el.textContent=mmss(s);el.classList.toggle('ueber',!!r.soll&&s>r.soll*60);
+  const b=$('#refUhrBtn');if(b)b.textContent=r.lauf?'⏸ Anhalten':s?'▶ Weiter':'▶ Start';
+}
+function refUhr(r,an){
+  if(an&&!r.lauf)r.lauf=Date.now();
+  else if(!an&&r.lauf){r.sek=refSek(r);r.lauf=null}
+  save();refAnzeige();
+}
+function oeffneReferat(sid,rid){
+  const s=S.schueler[NK].find(x=>x.id===sid);
+  REF={sid,rid};
+  modal(()=>{const r=refVon(sid,rid);if(!r)return '<p>Referat gelöscht.</p>';
+    const vs=refVorschlag(r),D=`data-sid="${sid}" data-rid="${rid}"`;
+    return `<h2>🎤 Referat · ${esc(s.name)} · ${NK}</h2>
+    <div class="refkopf">
+      <label style="margin-top:0">Thema<input id="refThema" data-f="refFeld" data-feld="thema" ${D} value="${esc(r.thema)}" placeholder="Thema des Referats" autocomplete="off"></label>
+      <label style="margin-top:0">Datum<input type="date" data-f="refDatum" ${D} value="${r.d}"></label></div>
+    <div class="card uhrbox"><div><div class="kbl">Redezeit</div><span class="uhr" id="refUhr">${mmss(refSek(r))}</span> <span class="muted small">von <input type="number" min="0" max="90" inputmode="numeric" data-f="refSoll" ${D} value="${r.soll||''}" aria-label="vorgesehene Minuten"> Min.</span></div>
+      <div class="btns" style="margin:0"><button class="btn prim" id="refUhrBtn" data-act="refUhr" ${D}>▶ Start</button><button class="btn" data-act="refUhrNull" ${D}>Zurücksetzen</button></div></div>
+    <h3>Protokoll</h3>
+    <input id="refZeile" ${D} placeholder="Beobachtung tippen und mit Enter festhalten" autocomplete="off" autocorrect="off" enterkeyhint="done" style="width:100%">
+    <p class="hint">Zeilenanfang <b>+</b> gelungen · <b>-</b> Schwäche · <b>?</b> Frage. <kbd>Enter</kbd> hält die Zeile mit Redezeit fest und startet die Uhr. <kbd>⌥</kbd> + <kbd>Leertaste</kbd> hält die Uhr an bzw. startet sie.</p>
+    <div class="prot" id="refProt">${r.protokoll.map(p=>pzHtml(sid,rid,p)).join('')}</div>
+    <h3>Bewertung</h3>
+    <div class="tabwrap"><table class="krit"><thead><tr><th>Kriterium</th><th class="num">Gewicht</th><th class="num">Note</th></tr></thead><tbody>
+    ${REF_KRIT.map(([k,l,h,g])=>`<tr><td><b>${l}</b><div class="muted small">${h}</div></td><td class="num muted">${g} %</td><td class="num"><input class="g" inputmode="numeric" maxlength="1" autocomplete="off" data-f="refKrit" data-k="${k}" ${D} value="${r.krit[k]||''}" aria-label="${l}"></td></tr>`).join('')}</tbody></table></div>
+    <p class="hint">Ziffer 1–6 tippen, der Cursor springt zum nächsten Kriterium. Leere Kriterien zählen nicht mit.</p>
+    <div class="refnote"><span>Errechnet: <b id="refVs">${f2(vs)}</b></span><label style="margin:0;display:flex;align-items:center;gap:8px">Note <input class="g" id="refNoteFeld" inputmode="numeric" maxlength="1" autocomplete="off" data-f="refNote" ${D} value="${r.note||''}" placeholder="${vs!=null?Math.round(vs):''}" aria-label="Note"></label>
+      <span class="hint" style="margin:0">leer = gerundeter Wert; eigene Ziffer überschreibt ihn</span></div>
+    <label>Bemerkung / Rückmeldung<textarea id="refBem" data-f="refFeld" data-feld="bem" ${D} placeholder="Stärken, Tipps fürs nächste Mal …">${esc(r.bem)}</textarea></label>
+    <h3>Mündliche Note</h3>
+    <div id="refStatus">${refStatusHtml(sid,r)}</div>
+    <div class="btns" style="margin-top:16px"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="refPdf" ${D}>Bewertungsbogen als PDF</button><button class="btn gefahr" data-act="refWeg" ${D}>Referat löschen</button></div>`;
+  },()=>{
+    const r=refVon(sid,rid);
+    if(r){if(r.lauf)refUhr(r,false);if(refLeer(r))S.referate[sid]=S.referate[sid].filter(x=>x.id!==rid)}
+    save();REF=null;clearInterval(RTIMER);RTIMER=null;NEDIT=null;oeffneSchueler(sid);
+  });
+  clearInterval(RTIMER);RTIMER=setInterval(refAnzeige,250);refAnzeige();
+  const r=refVon(sid,rid);(r.thema?$('#refZeile'):$('#refThema'))?.focus();
+}
+function refZeileHinzu(el){
+  const r=refVon(el.dataset.sid,el.dataset.rid),x=el.value.trim();if(!r||!x)return;
+  if(!r.lauf&&!refSek(r))refUhr(r,true);
+  const t=r.lauf||refSek(r)?mmss(refSek(r)):new Date().toTimeString().slice(0,5);
+  const p={id:uid(),t,x};r.protokoll.push(p);save();
+  const box=$('#refProt');box.insertAdjacentHTML('beforeend',pzHtml(el.dataset.sid,el.dataset.rid,p));box.scrollTop=box.scrollHeight;
+  el.value='';
+}
+function refNeuBerechnen(sid,r){
+  const vs=refVorschlag(r);$('#refVs').textContent=f2(vs);
+  $('#refNoteFeld').placeholder=vs!=null?Math.round(vs):'';
+  refSync(sid,r);$('#refStatus').innerHTML=refStatusHtml(sid,r);save();
+}
+function druckeReferat(sid,rid){
+  const s=S.schueler[NK].find(x=>x.id===sid),r=refVon(sid,rid),vs=refVorschlag(r),d=neuesPdf(false);
+  let y=pdfKopf(d,`Referat · ${s.name} · ${NK}`,`${r.thema||'(ohne Thema)'} · ${fmtD(r.d)} · Redezeit ${mmss(refSek(r))} Min.${r.soll?` (vorgesehen ${r.soll} Min.)`:''}`);
+  d.autoTable({...TAB_STIL,startY:y,head:[['Kriterium','Gewicht','Note']],
+    body:[...REF_KRIT.map(([k,l,h,g])=>[`${l}: ${h}`,g+' %',r.krit[k]||'']),['Errechnet','',f2(vs)],['Note','',refNote(r)??'']].map(z=>z.map(pdfTxt)),
+    columnStyles:{1:{halign:'center',cellWidth:22},2:{halign:'center',cellWidth:22}},
+    didParseCell:c=>{if(c.section==='body'&&c.row.index>=REF_KRIT.length)c.cell.styles.fontStyle='bold'}});
+  y=d.lastAutoTable.finalY+9;
+  if(r.bem?.trim()){
+    d.setFont('helvetica','bold');d.setFontSize(12);d.text('Bemerkung',14,y);
+    d.setFont('helvetica','normal');d.setFontSize(10);const z=d.splitTextToSize(pdfTxt(r.bem),d.internal.pageSize.getWidth()-28);d.text(z,14,y+6);y+=8+z.length*4.6;
+  }
+  if(r.protokoll.length){
+    if(y>d.internal.pageSize.getHeight()-30){d.addPage();y=18}
+    d.setFont('helvetica','bold');d.setFontSize(12);d.text('Protokoll',14,y);
+    d.autoTable({...TAB_STIL,startY:y+3,head:[['Zeit','Beobachtung']],body:r.protokoll.map(p=>[p.t,p.x].map(pdfTxt)),columnStyles:{0:{cellWidth:18,halign:'center'}},rowPageBreak:'avoid'});
+  }
+  pdfSeitenzahlen(d);
+  pdfAusgeben(d,`Referat_${NK}_${s.name.replace(/[^A-Za-z0-9ÄÖÜäöüß]+/g,'')}_${r.d}.pdf`);
+}
+/* Tastatur im Referat: Enter im Thema → Protokoll, Enter im Protokoll → Zeile festhalten, ⌥+Leertaste → Uhr */
+document.addEventListener('keydown',e=>{
+  if(!REF||!$('#refUhr'))return;
+  const r=refVon(REF.sid,REF.rid);if(!r)return;
+  if(e.altKey&&(e.code==='Space'||e.key===' ')){e.preventDefault();refUhr(r,!r.lauf);return}
+  if(e.key!=='Enter'||e.isComposing)return;
+  if(e.target.id==='refZeile'){e.preventDefault();refZeileHinzu(e.target)}
+  else if(e.target.id==='refThema'){e.preventDefault();$('#refZeile').focus()}
+});
+
 /* ----- Sitzplan: 4 Reihen × 8 Tische, Durchgang in der Mitte ----- */
 const REIHEN=4, TISCHE=8;
 let SPSEL=null, SPUMSETZEN=false;
@@ -632,7 +771,7 @@ function vSitzplan(){
   ${L.length?'':`<div class="card warn" style="margin-top:12px">Für ${NK} gibt es noch keine Klassenliste. Namen unter <b>Noten › Klassenliste</b> einfügen.</div>`}
   <p class="hint">${selName?`<b>${esc(selName)}</b> ausgewählt – jetzt einen Platz antippen (belegter Platz = Tausch).${platzVon(SPSEL)?' <button class="btn klein" data-act="spRaus">Vom Platz nehmen</button>':''} <button class="btn klein" data-act="spAbwahl">Abbrechen</button>`
     :SPUMSETZEN?'Umsetzen: belegten Tisch antippen, dann den Zieltisch (belegt = Tausch). Zum Beenden „Umsetzen“ erneut tippen.'
-    :'Namen im Plan antippen öffnet die Notizen. Zum Platzieren einen Namen unten antippen, dann einen Tisch. Zum Verschieben „Umsetzen“ wählen.'}</p>
+    :'Namen im Plan antippen öffnet Noten, Notizen und Referat. Zum Platzieren einen Namen unten antippen, dann einen Tisch. Zum Verschieben „Umsetzen“ wählen.'}</p>
   <div class="card">${sitzGrid(false)}</div>
   <h3>Noch ohne Platz (${frei.length})</h3>
   <div class="chips">${frei.map(s=>`<button class="chip ${s.id===SPSEL?'sel':''}" data-act="spWahl" data-id="${s.id}">${esc(s.name)}</button>`).join('')||'<span class="muted small">Alle haben einen Platz.</span>'}</div>
@@ -666,7 +805,7 @@ const beitrTxt=sid=>{const b=beitr(sid),p=b.filter(x=>x==='+').length,m=b.filter
 const HJ_ENDE='2027-02-19';
 const aktHJ=()=>heute()<=HJ_ENDE?1:2;
 const beitrNote=b=>Math.min(6,8-b.filter(x=>x==='+').length);
-function migriere(){S.beitraege??={};S.beitrAuto??={};S.mDaten??={};S.listen??={};S.sitzplan??={};S.kbuch??={};for(const k of KL){S.listen[k]??=[];S.kbuch[k]??=[];S.sitzplan[k]??={plaetze:{}};S.sitzplan[k].lehrersicht=true;sortiere(k)}}
+function migriere(){S.referate??={};S.beitraege??={};S.beitrAuto??={};S.mDaten??={};S.listen??={};S.sitzplan??={};S.kbuch??={};for(const k of KL){S.listen[k]??=[];S.kbuch[k]??=[];S.sitzplan[k]??={plaetze:{}};S.sitzplan[k].lehrersicht=true;sortiere(k)}}
 const liste=()=>S.listen[NK].find(l=>l.id===LID);
 const wert=(l,sid,sp)=>l.werte[sid]?.[sp];
 const leer=(sp,v)=>sp.typ==='haken'?!v:(v==null||v==='');
@@ -970,7 +1109,7 @@ const ACT={
       L.push({id:uid(),name:kurzname(t,L.map(s=>s.name)),nach:t.nach,notizen:[]});n++}
     sortiere(NK);save();refreshModal();toast(`${n} hinzugefügt`+(e?`, ${e} ergänzt`:''))},
   schuelerWeg:d=>{const L=S.schueler[NK],s=L.find(x=>x.id===d.id);if(!confirm(`${s.name} mit allen Noten und Notizen entfernen?`))return;
-    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];delete S.beitraege[d.id];delete S.beitrAuto[d.id];for(const l of S.listen[NK])delete l.werte[d.id];{const P=S.sitzplan[NK].plaetze;for(const q in P)if(P[q]===d.id)delete P[q]}save();refreshModal()},
+    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];delete S.beitraege[d.id];delete S.beitrAuto[d.id];delete S.referate[d.id];for(const l of S.listen[NK])delete l.werte[d.id];{const P=S.sitzplan[NK].plaetze;for(const q in P)if(P[q]===d.id)delete P[q]}save();refreshModal()},
   schueler:d=>{NEDIT=null;oeffneSchueler(d.id)},
   notizSpeichern:d=>{const t=$('#notizfeld').value.trim();if(!t){toast('Bitte Text eingeben');return}
     const dat=$('#notizdatum').value||heute(),s=S.schueler[NK].find(x=>x.id===d.id),L=(s.notizen??=[]);
@@ -991,6 +1130,23 @@ const ACT={
     }else if(auto){delete n[auto.c];delete md[auto.c];delete S.beitrAuto[sid];toast('Note aus Unterrichtsbeiträgen entfernt')}
     save();refreshModal()},
   beitrLeeren:d=>{if(!confirm('Alle sieben Unterrichtsbeiträge leeren? Eine bereits gebildete Note bleibt stehen.'))return;delete S.beitraege[d.id];delete S.beitrAuto[d.id];save();refreshModal()},
+  refNeu:d=>{const r={id:uid(),d:heute(),thema:'',soll:null,sek:0,lauf:null,protokoll:[],krit:{},note:null,bem:'',c:null};
+    (S.referate[d.id]??=[]).push(r);oeffneReferat(d.id,r.id)},
+  refOeffnen:d=>oeffneReferat(d.sid,d.rid),
+  refUhr:d=>{const r=refVon(d.sid,d.rid);refUhr(r,!r.lauf);$('#refZeile')?.focus()},
+  refUhrNull:d=>{const r=refVon(d.sid,d.rid);if(refSek(r)&&!confirm('Redezeit auf 0:00 zurücksetzen?'))return;r.lauf=null;r.sek=0;save();refAnzeige()},
+  refPzWeg:d=>{const r=refVon(d.sid,d.rid);r.protokoll=r.protokoll.filter(p=>p.id!==d.pid);save();$(`[data-pz="${d.pid}"]`)?.remove()},
+  refUebern:d=>{const r=refVon(d.sid,d.rid),c=$('#refSlot').value,no=refNote(r),n=(S.noten[d.sid]??={});
+    if(!no)return;
+    const auto=S.beitrAuto[d.sid]?.c===c;
+    if(n[c]&&!confirm(`${slotName(c.slice(2))} (${c[0]}. HJ) ist bereits mit ${n[c]}${auto?' aus den Unterrichtsbeiträgen':''} belegt. Durch Note ${no} aus dem Referat ersetzen?`))return;
+    if(auto)delete S.beitrAuto[d.sid];
+    r.c=c;refSync(d.sid,r);save();$('#refStatus').innerHTML=refStatusHtml(d.sid,r);toast(`Note ${no} als ${slotName(c.slice(2))} eingetragen`)},
+  refLoesen:d=>{const r=refVon(d.sid,d.rid);if(!confirm('Note wieder aus der Notentabelle entfernen?'))return;
+    delete S.noten[d.sid]?.[r.c];delete S.mDaten[d.sid]?.[r.c];r.c=null;save();$('#refStatus').innerHTML=refStatusHtml(d.sid,r)},
+  refPdf:d=>{const r=refVon(d.sid,d.rid);if(r.lauf)refUhr(r,false);druckeReferat(d.sid,d.rid)},
+  refWeg:d=>{const r=refVon(d.sid,d.rid);if(!confirm(`Referat${r.thema?` „${r.thema}“`:''} löschen?${r.c?' Die eingetragene mündliche Note bleibt in der Notentabelle stehen.':''}`))return;
+    S.referate[d.sid]=S.referate[d.sid].filter(x=>x.id!==d.rid);save();zu()},
   spWahl:d=>{SPSEL=SPSEL===d.id?null:d.id;render()},
   spAbwahl:()=>{SPSEL=null;render()},
   spModus:()=>{SPUMSETZEN=!SPUMSETZEN;SPSEL=null;render()},
@@ -1050,6 +1206,14 @@ const IN={
   kbFeld:el=>{kbEintrag(el.dataset.id)[el.dataset.feld]=el.value;save()},
   lText:el=>setWert(el.dataset.sid,el.dataset.sp,el.value),
   lTitel:el=>{liste().titel=el.value;save()},
+  refFeld:el=>{refVon(el.dataset.sid,el.dataset.rid)[el.dataset.feld]=el.value;save()},
+  refKrit:el=>{
+    const r=refVon(el.dataset.sid,el.dataset.rid),v=el.value.replace(/[^1-6]/g,'').slice(-1);el.value=v;
+    if(v)r.krit[el.dataset.k]=+v;else delete r.krit[el.dataset.k];
+    refNeuBerechnen(el.dataset.sid,r);
+    if(v){const alle=$$('input[data-f="refKrit"]'),i=alle.indexOf(el);(alle[i+1]||$('#refBem')).focus();alle[i+1]?.select()}
+  },
+  refNote:el=>{const r=refVon(el.dataset.sid,el.dataset.rid),v=el.value.replace(/[^1-6]/g,'').slice(-1);el.value=v;r.note=v?+v:null;refNeuBerechnen(el.dataset.sid,r)},
   sName:el=>{S.schueler[NK].find(x=>x.id===el.dataset.id).name=el.value;save()},
   sNach:el=>{S.schueler[NK].find(x=>x.id===el.dataset.id).nach=el.value.trim();save()},
   note:el=>{
@@ -1068,6 +1232,8 @@ const CH={
   thTitel:()=>{},
   puffer:el=>{S.puffer=Math.max(0,+el.value||0);save();render()},
   sFilter:el=>{SFILTER=el.value;render()},
+  refDatum:el=>{if(!el.value)return;const r=refVon(el.dataset.sid,el.dataset.rid);r.d=el.value;refSync(el.dataset.sid,r);save();$('#refStatus').innerHTML=refStatusHtml(el.dataset.sid,r)},
+  refSoll:el=>{refVon(el.dataset.sid,el.dataset.rid).soll=Math.max(0,+el.value||0)||null;save();refAnzeige()},
   kaDatum:el=>{S.kaDaten[NK][el.dataset.c]=el.value;save()},
   lBetrag:el=>{const t=el.value.replace(/[^\d,.-]/g,'').replace(',','.'),v=t===''?null:+t;
     if(v!=null&&isNaN(v)){el.value='';setWert(el.dataset.sid,el.dataset.sp,null);return}
