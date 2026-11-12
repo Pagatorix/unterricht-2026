@@ -159,6 +159,17 @@ td:first-child,th:first-child{text-align:left}
 .stp button .kx{flex:none;width:22px;height:22px;border:2px solid var(--muted);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1}
 .stp button.ok{background:var(--ok-soft)}
 .stp button.ok .kx{border-color:var(--ok);background:var(--ok);color:#fff}
+.pl{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.pl button.pt{width:120px;height:120px;padding:0;border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden;cursor:pointer}
+.pl button.pt img{width:100%;height:100%;object-fit:cover;display:block}
+.pl button.pneu{width:120px;height:120px;border:2px dashed var(--line);border-radius:10px;background:var(--bg);color:var(--muted);font:inherit;font-weight:600;font-size:14px;cursor:pointer}
+.bildansicht{position:fixed;inset:0;background:#111;z-index:30;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.bildansicht .ba-bar{display:flex;gap:8px;flex-wrap:wrap;padding:8px;justify-content:flex-end;background:#111}
+.bildansicht .ba-bar .muted{color:#aaa;margin-right:auto;align-self:center;padding-left:6px}
+.bildansicht .ba-flaeche{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;-webkit-overflow-scrolling:touch}
+.bildansicht img{max-width:100%;max-height:100%;object-fit:contain;background:#fff}
+.bildansicht.gross .ba-flaeche{display:block}
+.bildansicht.gross img{max-width:none;max-height:none}
 .krit td{text-align:left}.krit td.num,.krit th.num{text-align:center}
 .krit input.g{width:46px;height:42px;text-align:center;padding:0;font-size:20px;font-weight:700}
 .refnote{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
@@ -210,6 +221,7 @@ kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;paddi
 <div id="toast"></div>
 <div id="druck"></div>
 <input type="file" id="importdatei" accept=".json,application/json,text/plain" hidden>
+<input type="file" id="plakatdatei" accept="image/*" multiple hidden>
 <script src="jspdf.umd.min.js"></script>
 <script src="jspdf.plugin.autotable.min.js"></script>
 <script>
@@ -315,7 +327,7 @@ function neuerStand(){return{
   schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},kbuch:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
-const APP_VERSION='23';
+const APP_VERSION='25';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -327,6 +339,19 @@ async function schreiben(){
   try{const db=await idb();await new Promise((res,rej)=>{const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).put(S,'stand');t.oncomplete=res;t.onerror=()=>rej(t.error)})}
   catch(e){try{localStorage.setItem(DBN,JSON.stringify(S))}catch{toast('Speichern fehlgeschlagen – bitte sofort sichern!')}}
 }
+/* Plakatfotos liegen getrennt vom Datenstand (Schlüssel bild:<id>), damit das häufige Speichern schnell bleibt */
+const BILD=new Map();let BILDER_EXPORT=null;
+async function kv(modus,fn){const db=await idb();return new Promise((res,rej)=>{const t=db.transaction(STORE,modus),q=fn(t.objectStore(STORE));let out;if(q)q.onsuccess=()=>out=q.result;t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})}
+const BILD_BEREICH=()=>IDBKeyRange.bound('bild:','bild:￿');
+async function bildLaden(id){if(BILD.has(id))return BILD.get(id);const v=await kv('readonly',st=>st.get('bild:'+id));if(v)BILD.set(id,v);return v}
+async function bildSchreiben(id,src){BILD.set(id,src);BILDER_EXPORT=null;await kv('readwrite',st=>st.put(src,'bild:'+id))}
+async function bilderLoeschen(ids){if(!ids.length)return;ids.forEach(i=>BILD.delete(i));BILDER_EXPORT=null;try{await kv('readwrite',st=>{ids.forEach(i=>st.delete('bild:'+i))})}catch{}}
+async function alleBilder(){
+  const [k,v]=await Promise.all([kv('readonly',st=>st.getAllKeys(BILD_BEREICH())),kv('readonly',st=>st.getAll(BILD_BEREICH()))]);
+  const o={};(k||[]).forEach((x,i)=>o[x.slice(5)]=v[i]);return o;
+}
+async function bilderErsetzen(o){BILD.clear();BILDER_EXPORT=null;await kv('readwrite',st=>{st.delete(BILD_BEREICH());for(const[id,src] of Object.entries(o||{}))st.put(src,'bild:'+id)})}
+const refBildIds=r=>(r?.bilder||[]).map(b=>b.id);
 let saveT;
 function save(){clearTimeout(saveT);saveT=setTimeout(schreiben,250)}
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&S){clearTimeout(saveT);schreiben()}});
@@ -620,7 +645,7 @@ function oeffneSchueler(id){
     <h3>Referate</h3>
     <div class="liste">${(S.referate[id]||[]).slice().sort((a,b)=>b.d.localeCompare(a.d)).map(r=>{const no=refNote(r);
       return `<button class="card termin" style="min-height:0" data-act="refOeffnen" data-sid="${id}" data-rid="${r.id}"><div class="tt"><b>${esc(r.thema||'(ohne Thema)')}</b>
-      <div class="muted small">${fmtD(r.d)} · ${mmss(refSek(r))} Min. · ${r.protokoll.length} Protokollzeile${r.protokoll.length===1?'':'n'}${r.c?` · eingetragen als ${slotName(r.c.slice(2))} (${r.c[0]}. HJ)`:''}</div></div>
+      <div class="muted small">${fmtD(r.d)} · ${mmss(refSek(r))} Min. · ${r.protokoll.length} Protokollzeile${r.protokoll.length===1?'':'n'}${r.bilder?.length?` · ${r.bilder.length} Plakatfoto${r.bilder.length===1?'':'s'}`:''}${r.c?` · eingetragen als ${slotName(r.c.slice(2))} (${r.c[0]}. HJ)`:''}</div></div>
       <span class="pill ${no?'ok':'st-offen'}">${no?'Note '+no:'offen'}</span></button>`}).join('')}</div>
     <div class="btns"><button class="btn prim" data-act="refNeu" data-id="${id}">🎤 Referat erfassen</button></div>
     <h3>Unterrichtsbeiträge <span class="muted small">${beitrTxt(id)}</span></h3>
@@ -693,11 +718,166 @@ const REF_LISTEN=[
     [1,'neue Einstellung zu Zeit und Wirtschaft; ohne diese Vorarbeit vielleicht keine Fabriken'],
     [1,'Rückzug in die Zelle: der einzelne Mensch gewinnt an Bedeutung gegenüber Staat und Gemeinschaft'],
   ]},
+  {id:'gdw10',thema:'Geschichte der Wirtschaft, Kapitel 10: Klöster, Märkte und Zünfte',punkte:[
+    [0,'Klöster im frühen Mittelalter: Zuflucht und Inseln der Zivilisation'],
+    [1,'Mönche bewirtschaften Land und bewahren alte Schriften'],
+    [1,'Eigenwirtschaft: alles selbst herstellen (Getreide, Brot, Wein, Bier, Werkzeug, Kleidung)'],
+    [0,'Fernhandel und Arbeitsteilung der Antike fast verschwunden'],
+    [1,'Araber erobern den Süden des Mittelmeers, seine wirtschaftliche Einheit ist zerstört'],
+    [1,'Europa zerfällt in autarke Einzelwirtschaften: Lehen für Vasallen, unfreie Bauern'],
+    [0,'Trotzdem Handel nötig'],
+    [1,'Salz zum Haltbarmachen von Fleisch und Käse; Ortsnamen mit „salz“ oder „hall“ (Salzburg, Bad Reichenhall)'],
+    [1,'Ausgleich guter und schlechter Ernten (Wein, Saatgut)'],
+    [0,'Markt: feste Zeit, fester Ort, kurze und sichere Wege'],
+    [1,'Pippin der Jüngere ordnet 744 Wochenmärkte in größeren Siedlungen an'],
+    [1,'oft Tauschhandel, weil Geld knapp ist (fränkische Silberdenare)'],
+    [0,'Prinzip des Marktes: von niemandem erfunden'],
+    [1,'Anbieter wollen teuer verkaufen, Käufer billig kaufen'],
+    [1,'hoher Preis: weniger Nachfrage, mehr Angebot; niedriger Preis: umgekehrt'],
+    [1,'funktionierender Markt wird „geräumt“'],
+    [0,'Eingriffe stören den Markt'],
+    [1,'verordneter Niedrigpreis für Brot: weniger Angebot, Schlangen, viele bekommen nichts'],
+    [1,'verordneter Höchstpreis: Bäcker bleiben auf Brot sitzen'],
+    [0,'Zünfte im späten Mittelalter: Preise und Mengen selbst festgelegt (Kartell)'],
+    [1,'erst Blüte des Handwerks, dann Hemmnis für Fortschritt'],
+    [0,'Anfänge des Fernhandels im 8./9. Jahrhundert: Waren aus Indien, Arabien, Byzanz; Kaufleute oft Syrer und Juden'],
+  ]},
+  {id:'gdw11',thema:'Geschichte der Wirtschaft, Kapitel 11: Kreuzzüge, arabische Ziffern und doppelte Buchführung',punkte:[
+    [0,'Kreuzzüge: Aufruf von Papst Urban II. 1095'],
+    [1,'Ziel: Jerusalem unter christliche Herrschaft bringen'],
+    [1,'Eroberung Jerusalems 1099 mit Blutbad; Kreuzfahrerstaaten'],
+    [1,'1291 geht die letzte Festung Akko verloren'],
+    [0,'Militärisch gescheitert, aber Gewinn für Wirtschaft und Geistesleben Europas'],
+    [1,'islamische Reiche kulturell überlegen: bewahren das Erbe der Antike, Mathematik, Astronomie, Handel'],
+    [0,'Arabische Ziffern (Ursprung Indien)'],
+    [1,'neu: die Null; erleichtert Multiplizieren, Bruchrechnen, Dezimalsystem'],
+    [1,'ersetzen im Handel die römischen Ziffern; Kaufleute rechnen besser'],
+    [0,'Vorher: einfache, ungenaue Aufzeichnungen (Schmierzettel, Knoten im Taschentuch)'],
+    [0,'Doppelte Buchführung'],
+    [1,'Luca Pacioli stellt sie 1494 vor, sammelt aber nur, was arabische und italienische Kaufleute schon tun'],
+    [1,'jeder Vorgang wird zweimal gebucht (Beispiel: Weinvorräte −10, Kasse +10 Dukaten)'],
+    [0,'Bilanz (von italienisch bilancia = Waage)'],
+    [1,'links Aktiva (wofür das Geld verwendet wird), rechts Passiva (Geld in der Firma)'],
+    [1,'beide Seiten gleich groß; vereinfacht als „T“-Konto'],
+    [0,'Folgen der doppelten Buchführung'],
+    [1,'Gewinn genau berechenbar, Geschäft durchschaubar'],
+    [1,'Zahlenbild für andere verständlich: Partnerschaften und Kredite leichter'],
+    [1,'verbreitet sich von Italien aus in ganz Europa'],
+  ]},
+  {id:'gdw12',thema:'Geschichte der Wirtschaft, Kapitel 12: Die mechanische Uhr',punkte:[
+    [0,'Für Kaufleute zählt auch, wann Einnahmen und Ausgaben anfallen: Zeit messen'],
+    [0,'Zeitmessung im Altertum'],
+    [1,'Ägypter und Sumerer: Kalender nach Sonne, Mond und Sternen; Wasseruhren'],
+    [1,'Tag mit 24 Stunden, die aber im Sommer länger sind als im Winter'],
+    [1,'Priester und Könige legen die Zeit fest'],
+    [0,'Mittelalter: Klöster brauchen genaue Zeit (pünktliche Gebete, Strafen bei Verspätung)'],
+    [0,'Mechanische Uhr, erfunden etwa 1280–1300, Erfinder unbekannt'],
+    [1,'Zahnräder, Waagebalken, Spindel; anfangs nur ein Zeiger'],
+    [1,'genauer als alles bisher, unabhängig von Sonne, Priestern und Fürsten'],
+    [0,'Folgen der Uhr'],
+    [1,'Zeit wird „demokratisiert“: Kirchturmuhr für alle sichtbar'],
+    [1,'Zeit wird ein gleichmäßiges, abstraktes Naturphänomen'],
+    [1,'Kaufleute rechnen mit Zeit: Zeit sparen, nicht nur Kosten'],
+    [1,'Alltag gewinnt gegenüber der Ewigkeit; Weg zum Menschenbild der Renaissance'],
+    [1,'mehr Arbeitsdisziplin: Ende des „Blauen Montags“, feste Arbeitszeiten im Harz (16. Jh.)'],
+    [1,'Uhrmacher-Handwerk fördert Präzision in der ganzen Wirtschaft'],
+    [0,'Lewis Mumford: Uhr als „Urmaschine“ für moderne Wirtschaft und Fabriken'],
+    [1,'Beginn von Europas Aufstieg; Uhren werden begehrter Exportartikel'],
+  ]},
+  {id:'gdw13',thema:'Geschichte der Wirtschaft, Kapitel 13: Gewürzhandel und der Seeweg nach Indien',punkte:[
+    [0,'Kreuzzüge öffnen Europa zur Welt: mehr Handel übers Mittelmeer, Waren aus Indien und China'],
+    [0,'Marco Polo (1254–1324) reist 1271 bis Peking zu Kublai Khan; seine Berichte verändern das Weltbild'],
+    [0,'Venedig wird reichste Stadt am Mittelmeer und verdrängt Genua'],
+    [1,'Handel über Konstantinopel und Alexandria: Edelsteine, Tuche, Seide, vor allem Gewürze'],
+    [0,'Warum Gewürze so wertvoll waren'],
+    [1,'eintöniges Essen; keine Kartoffeln, Tomaten, Kaffee, Tee, Kakao'],
+    [1,'viel gepökeltes Fleisch, fad und zäh; Gewürze aus Indien und von den „Gewürzinseln“'],
+    [1,'eine Muskatnuss soll mit Gold aufgewogen worden sein'],
+    [0,'Türken erobern 1453 Konstantinopel (Istanbul): alter Handelsweg nach Indien versperrt'],
+    [1,'neuer Weg nur übers Meer rund um Afrika'],
+    [0,'Portugal als neue Seefahrernation'],
+    [1,'Handelsniederlassungen an der Westküste Afrikas; Tand gegen Gold und Edelsteine'],
+    [1,'Vasco da Gama umsegelt 1498 das Kap der Guten Hoffnung und erreicht Indien'],
+    [1,'Goa, Hormus, Malakka werden portugiesisch; Portugal statt Venedig wird reich'],
+    [0,'Gewaltsame Ausbreitung: Handelsplätze erobert, Kolonien gegründet'],
+    [1,'Soldaten, Kaufleute und Missionare arbeiten zusammen; Weltwirtschaft beginnt mit blutigen Mitteln'],
+  ]},
+  {id:'gdw14',thema:'Geschichte der Wirtschaft, Kapitel 14: Kolumbus und die Eroberung Amerikas',punkte:[
+    [0,'Suche nach einem schnelleren Weg nach Indien als um Afrika'],
+    [0,'Kopernikus: Erde ist eine Kugel und kreist um die Sonne (gegen die Lehre der Kirche)'],
+    [1,'Folgerung: Nach Westen segeln führt auch nach Indien'],
+    [0,'Christoph Kolumbus'],
+    [1,'überlebt 1476 eine Seeschlacht vor Portugal, bleibt in Lissabon (Kartenzeichner)'],
+    [1,'Portugal lehnt seinen Plan 1484 ab'],
+    [1,'kämpft acht Jahre, bis Ferdinand und Isabella von Spanien zustimmen'],
+    [0,'Reise 1492'],
+    [1,'drei Schiffe: Santa Maria, Pinta, Nina; Start am 3. August'],
+    [1,'12. Oktober: Landung auf San Salvador in der Karibik; Bewohner nennt er „Indianer“'],
+    [1,'danach Kuba und Haiti; glaubt bis zum Tod, Indien erreicht zu haben'],
+    [0,'Amerigo Vespucci erkennt einen neuen Kontinent; Ringmann nennt ihn „America“'],
+    [0,'Ziele des Kolumbus: Land für Spanien, Gold, Bekehrung zum Christentum'],
+    [0,'Ungleicher Handel'],
+    [1,'Indianer kennen kein Eigentum, Handel ist für sie Geschenk und Gegengeschenk'],
+    [1,'Kolumbus will sie unterwerfen und zu Sklaven machen'],
+    [0,'Eroberung Amerikas: aus Handel wird Ausbeutung'],
+    [1,'Kariben fast völlig ausgerottet durch Gewalt, Verzweiflung und Krankheiten (Pocken)'],
+    [1,'Konquistadoren zerstören die Reiche der Azteken und Inka, unterstützt von anderen unterdrückten Völkern'],
+    [1,'Südamerika wird Kolonie Spaniens und Portugals (Brasilien), selbstständig im 19. Jahrhundert'],
+    [1,'Erbe der Unterdrückung bis heute: Aufstände, wirtschaftliche Rückständigkeit'],
+  ]},
+  {id:'gdw15',thema:'Geschichte der Wirtschaft, Kapitel 15: Der Sklavenhandel und seine Abschaffung',punkte:[
+    [0,'Indianer als Zwangsarbeiter in Bergwerken und auf Zuckerplantagen; Bevölkerung stark dezimiert'],
+    [0,'Ab etwa 1500–1510: Sklaven aus Afrika'],
+    [1,'rund 11 Millionen Menschen in 350 Jahren versklavt'],
+    [0,'Sklaverei im europäischen Mittelalter weniger wichtig'],
+    [1,'Leibeigene statt Sklaven; Leibeigene konnten nicht verkauft werden'],
+    [1,'Handel mit Sklaven aus Osteuropa: „Sklave“ und „Slawe“, auch „ciao“ (schiavo)'],
+    [0,'Neu an der modernen Sklaverei'],
+    [1,'Sklaven nur aus Afrika, an der Hautfarbe als Unfreie erkennbar'],
+    [1,'Einsatz in den Kolonien, nicht im Mutterland'],
+    [1,'Kauf über Zwischenhändler an der „Sklavenküste“ (Kongo, Senegal)'],
+    [0,'Sklaverei auch in afrikanischen Königreichen und der islamischen Welt; christliche Händler bauen darauf auf'],
+    [0,'Transatlantischer Sklavenhandel'],
+    [1,'beteiligt: Portugiesen, Spanier, Holländer, Engländer, Franzosen'],
+    [1,'Bezahlung mit Pulver, Schnaps, Glasperlen; unmenschliche Überfahrt, mindestens ein Zehntel stirbt'],
+    [1,'harte Arbeit auf Kaffee-, Zucker- und Baumwollplantagen; Familien jederzeit trennbar'],
+    [0,'Widerstand: Aufstände; einzig erfolgreich Haiti (Aufstand 1791, unabhängig 1804)'],
+    [0,'Abschaffung'],
+    [1,'Quäker schließen 1759 Sklavenhalter aus; Vermont verbietet Sklaverei 1777'],
+    [1,'Dänemark 1803 erster europäischer Staat; britisches Weltreich verbietet den Handel 1808'],
+    [1,'USA: Bürgerkrieg 1860–1865, danach Verbot im ganzen Land'],
+    [0,'War Sklaverei wirtschaftlich?'],
+    [1,'Adam Smith: freie Arbeit ist effizienter'],
+    [1,'Robert Fogel: Sklavenfarmen im Süden 1860 produktiver'],
+    [1,'Schluss: Sklaverei endete durch bewusste Entscheidung für die Menschenrechte, nicht aus Ineffizienz'],
+  ]},
+  {id:'gdw16',thema:'Geschichte der Wirtschaft, Kapitel 16: Gold, Geld, Kredit und die ersten Banken',punkte:[
+    [0,'Gold aus Amerika macht Spanien reich'],
+    [1,'Währungsreform 1497: neue Münze Dublone (zwei venezianische Dukaten), zwei Generationen wertstabil'],
+    [0,'Aber: Geld ohne zusätzliche Waren'],
+    [1,'Preise steigen, Arme können sich weniger leisten, Reiche kaufen im Ausland'],
+    [1,'Gewinner ist das übrige Europa, dort blühen Handel und Wirtschaft'],
+    [0,'Mehr Geld in Europa'],
+    [1,'ab 1252 wieder Goldmünzen; nach der Entdeckung Amerikas etwa zehnmal so viel Geld im Umlauf'],
+    [1,'neue Silbervorkommen (Harz, Schwarzwald, Ungarn); rheinischer Gulden und Taler'],
+    [1,'Geld macht Güter „flüssig“: Liquidität; Kredite leichter, Zinsen sinken'],
+    [0,'Neue Bedürfnisse: Luxus der Renaissance (Schlösser, Rathäuser, feine Kleidung), Landsknechte für Kriege'],
+    [0,'Fürsten leihen sich Geld: Kredit wird ein Machtinstrument'],
+    [0,'Zinsverbot'],
+    [1,'Bauern geraten durch hohe Zinsen in Schuldknechtschaft'],
+    [1,'Bibel verbietet Zins; wer Zins nimmt, gilt als Wucherer'],
+    [0,'Erste Banken: Geldwechsler auf Bänken in Oberitalien (bancheri); kaputte Bank = banca rotta (Bankrott)'],
+    [0,'Der Wechsel (arabische Erfindung)'],
+    [1,'Geld in Venedig einzahlen, Wechselbrief in Genua einlösen'],
+    [1,'später ohne Einzahlung „auf Treu und Glauben“: Kredit (credere = glauben)'],
+    [1,'weitergebbar: Wechsel wird ein Zahlungsmittel'],
+    [1,'Beginn der modernen Finanzinstrumente (Optionen, Futures, Versicherungen)'],
+  ]},
 ];
 const stpZahl=r=>`${(r.punkte||[]).filter(p=>p.ok).length} von ${(r.punkte||[]).length}`;
 function stpHtml(sid,rid,r){
   const D=`data-sid="${sid}" data-rid="${rid}"`;
-  if(!(r.punkte||[]).length)return `<div class="row" style="justify-content:flex-start;flex-wrap:wrap;gap:8px"><select id="refListe" aria-label="Stichpunktliste">${REF_LISTEN.map(l=>`<option value="${l.id}">${esc(l.thema)}</option>`).join('')}</select>
+  if(!(r.punkte||[]).length)return `<div class="row" style="justify-content:flex-start;flex-wrap:wrap;gap:8px"><select id="refListe" style="max-width:100%" aria-label="Stichpunktliste">${REF_LISTEN.map(l=>`<option value="${l.id}">${esc(l.thema)}</option>`).join('')}</select>
     <button class="btn" data-act="refListeLaden" ${D}>Liste laden</button></div>
     <p class="hint">Die geladenen Stichpunkte während des Vortrags antippen, sobald sie genannt werden.</p>`;
   return `<p class="small"><b id="refStpZahl">${stpZahl(r)}</b> Stichpunkten genannt${r.liste?` · <span class="muted">${esc(r.liste)}</span>`:''}</p>
@@ -710,7 +890,60 @@ const refSek=r=>(r.sek||0)+(r.lauf?(Date.now()-r.lauf)/1000:0);
 const mmss=s=>{s=Math.floor(s);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`};
 function refVorschlag(r){let s=0,w=0;for(const[k,,,g] of REF_KRIT){const v=r.krit?.[k];if(v){s+=v*g;w+=g}}return w?s/w:null}
 const refNote=r=>r.note||(refVorschlag(r)!=null?Math.round(refVorschlag(r)):null);
-const refLeer=r=>!r.thema?.trim()&&!(r.punkte||[]).length&&!r.protokoll.length&&!Object.keys(r.krit).length&&!r.note&&!r.bem?.trim()&&!refSek(r);
+const refLeer=r=>!r.thema?.trim()&&!(r.punkte||[]).length&&!r.protokoll.length&&!Object.keys(r.krit).length&&!r.note&&!r.bem?.trim()&&!refSek(r)&&!(r.bilder||[]).length;
+/* Plakat: Fotos/Scans je Referat */
+function plakatHtml(sid,rid,r){
+  const D=`data-sid="${sid}" data-rid="${rid}"`,B=r.bilder||[];
+  return `<div class="pl">${B.map((b,i)=>`<button class="pt" data-act="refBildZeigen" ${D} data-bid="${b.id}" aria-label="Plakatfoto ${i+1} ansehen"><img data-bild="${b.id}" alt=""></button>`).join('')}
+    <button class="pneu" data-act="refBildNeu" ${D}>📷<br>${B.length?'weiteres Foto':'Plakat fotografieren'}</button></div>
+    <p class="hint">Foto aufnehmen oder aus der Fotomediathek wählen (auch mehrere, z. B. bei großen Plakaten). Antippen öffnet das Foto groß; dort drehen oder entfernen. Die Fotos kommen mit in den Bewertungsbogen und in die Sicherung.</p>`;
+}
+async function bilderFuellen(box){
+  for(const img of box?.querySelectorAll('img[data-bild]')||[]){try{const s=await bildLaden(img.dataset.bild);if(s)img.src=s}catch{}}
+}
+function plakatNeuZeichnen(sid,rid){const box=$('#refPlakat'),r=refVon(sid,rid);if(!box||!r)return;box.innerHTML=plakatHtml(sid,rid,r);bilderFuellen(box)}
+const bildAusUrl=url=>new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('Bild konnte nicht gelesen werden'));i.src=url});
+/* verkleinern (lange Seite höchstens 2400 px), auf Weiß legen, als JPEG ablegen; drehen = 90° im Uhrzeigersinn */
+function bildRendern(img,max,drehen){
+  const f=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight)),w=Math.round(img.naturalWidth*f),h=Math.round(img.naturalHeight*f);
+  const c=document.createElement('canvas');c.width=drehen?h:w;c.height=drehen?w:h;
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+  if(drehen){x.translate(h,0);x.rotate(Math.PI/2)}
+  x.drawImage(img,0,0,w,h);
+  return {src:c.toDataURL('image/jpeg',.82),w:c.width,h:c.height};
+}
+async function plakatHinzu(sid,rid,files){
+  const r=refVon(sid,rid);if(!r||!files.length)return;
+  toast(files.length>1?`${files.length} Fotos werden übernommen …`:'Foto wird übernommen …');
+  let n=0;
+  for(const f of files){
+    const url=URL.createObjectURL(f);
+    try{const b=bildRendern(await bildAusUrl(url),2400,false),id=uid();
+      await bildSchreiben(id,b.src);(r.bilder??=[]).push({id,w:b.w,h:b.h});n++}
+    catch(e){alert(`„${f.name}“ konnte nicht übernommen werden: ${e.message}`)}
+    finally{URL.revokeObjectURL(url)}
+  }
+  save();plakatNeuZeichnen(sid,rid);if(n)toast(n>1?`${n} Plakatfotos gespeichert`:'Plakatfoto gespeichert');
+}
+function plakatZeigen(sid,rid,bid){
+  const r=refVon(sid,rid);if(!r)return;
+  const ov=document.createElement('div');ov.className='bildansicht';
+  const nr=()=>r.bilder.findIndex(b=>b.id===bid)+1;
+  ov.innerHTML=`<div class="ba-bar"><span class="muted small">Plakatfoto ${nr()} von ${r.bilder.length} · Bild antippen = vergrößern</span>
+    <button class="btn" data-t="drehen">↻ Drehen</button><button class="btn gefahr" data-t="weg">Entfernen</button><button class="btn prim" data-t="zu">Schließen</button></div>
+    <div class="ba-flaeche"><img alt="Plakatfoto"></div>`;
+  document.body.appendChild(ov);
+  const img=$('img',ov),zu=()=>{ov.remove();plakatNeuZeichnen(sid,rid)};
+  bildLaden(bid).then(s=>{if(s)img.src=s});
+  img.addEventListener('click',()=>ov.classList.toggle('gross'));
+  ov.addEventListener('click',async e=>{const t=e.target.closest('[data-t]')?.dataset.t;if(!t)return;
+    if(t==='zu')zu();
+    else if(t==='weg'){if(!confirm('Dieses Plakatfoto entfernen?'))return;r.bilder=r.bilder.filter(b=>b.id!==bid);save();await bilderLoeschen([bid]);zu()}
+    else if(t==='drehen'){try{const b=bildRendern(await bildAusUrl(await bildLaden(bid)),99999,true),eb=r.bilder.find(x=>x.id===bid);
+      await bildSchreiben(bid,b.src);eb.w=b.w;eb.h=b.h;save();img.src=b.src}catch(err){alert('Drehen fehlgeschlagen: '+err.message)}}
+  });
+}
+$('#plakatdatei').addEventListener('change',e=>{const el=e.target,f=[...el.files];el.value='';plakatHinzu(el.dataset.sid,el.dataset.rid,f)});
 const pzArt=x=>x[0]==='+'?'plus':x[0]==='-'||x[0]==='−'?'minus':x[0]==='?'?'frage':'';
 const pzHtml=(sid,rid,p)=>`<div class="pz ${pzArt(p.x)}" data-pz="${p.id}"><span class="zt">${esc(p.t)}</span><span class="ptx">${esc(p.x)}</span><button class="icon" data-act="refPzWeg" data-sid="${sid}" data-rid="${rid}" data-pid="${p.id}" aria-label="Zeile löschen" tabindex="-1">✕</button></div>`;
 function refSlot(sid,r){if(r.c)return r.c;const h=r.d<=HJ_ENDE?1:2,n=S.noten[sid]||{};return [h+'-M1',h+'-M2'].find(c=>!n[c])||h+'-M2'}
@@ -753,6 +986,8 @@ function oeffneReferat(sid,rid){
     <div class="prot" id="refProt">${r.protokoll.map(p=>pzHtml(sid,rid,p)).join('')}</div>
     <h3>Stichpunkte</h3>
     <div id="refStp">${stpHtml(sid,rid,r)}</div>
+    <h3>Plakat</h3>
+    <div id="refPlakat">${plakatHtml(sid,rid,r)}</div>
     <h3>Bewertung</h3>
     <div class="tabwrap"><table class="krit"><thead><tr><th>Kriterium</th><th class="num">Gewicht</th><th class="num">Note</th></tr></thead><tbody>
     ${REF_KRIT.map(([k,l,h,g])=>`<tr><td><b>${l}</b><div class="muted small">${h}</div></td><td class="num muted">${g} %</td><td class="num"><input class="g" inputmode="numeric" maxlength="1" autocomplete="off" data-f="refKrit" data-k="${k}" ${D} value="${r.krit[k]||''}" aria-label="${l}"></td></tr>`).join('')}</tbody></table></div>
@@ -768,7 +1003,7 @@ function oeffneReferat(sid,rid){
     if(r){if(r.lauf)refUhr(r,false);if(refLeer(r))S.referate[sid]=S.referate[sid].filter(x=>x.id!==rid)}
     save();REF=null;clearInterval(RTIMER);RTIMER=null;NEDIT=null;oeffneSchueler(sid);
   });
-  clearInterval(RTIMER);RTIMER=setInterval(refAnzeige,250);refAnzeige();
+  clearInterval(RTIMER);RTIMER=setInterval(refAnzeige,250);refAnzeige();bilderFuellen($('#refPlakat'));
   const r=refVon(sid,rid);(r.thema?$('#refZeile'):$('#refThema'))?.focus();
 }
 function refZeileHinzu(el){
@@ -784,7 +1019,7 @@ function refNeuBerechnen(sid,r){
   $('#refNoteFeld').placeholder=vs!=null?Math.round(vs):'';
   refSync(sid,r);$('#refStatus').innerHTML=refStatusHtml(sid,r);save();
 }
-function druckeReferat(sid,rid){
+async function druckeReferat(sid,rid){
   const s=S.schueler[NK].find(x=>x.id===sid),r=refVon(sid,rid),vs=refVorschlag(r),d=neuesPdf(false);
   let y=pdfKopf(d,`Referat · ${s.name} · ${NK}`,`${r.thema||'(ohne Thema)'} · ${fmtD(r.d)} · Redezeit ${mmss(refSek(r))} Min.${r.soll?` (vorgesehen ${r.soll} Min.)`:''}`);
   d.autoTable({...TAB_STIL,startY:y,head:[['Kriterium','Gewicht','Note']],
@@ -808,6 +1043,16 @@ function druckeReferat(sid,rid){
     if(y>d.internal.pageSize.getHeight()-30){d.addPage();y=18}
     d.setFont('helvetica','bold');d.setFontSize(12);d.text('Protokoll',14,y);
     d.autoTable({...TAB_STIL,startY:y+3,head:[['Zeit','Beobachtung']],body:r.protokoll.map(p=>[p.t,p.x].map(pdfTxt)),columnStyles:{0:{cellWidth:18,halign:'center'}},rowPageBreak:'avoid'});
+  }
+  /* Plakatfotos: je Foto eine Seite, Hoch- oder Querformat passend zum Bild */
+  const B=r.bilder||[];
+  for(const [i,b] of B.entries()){
+    let src;try{src=await bildLaden(b.id)}catch{}
+    if(!src)continue;
+    d.addPage('a4',b.w>b.h?'landscape':'portrait');
+    const W=d.internal.pageSize.getWidth(),H=d.internal.pageSize.getHeight(),mw=W-28,mh=H-36,f=Math.min(mw/b.w,mh/b.h);
+    d.setFont('helvetica','bold');d.setFontSize(12);d.text(pdfTxt(`Plakat${B.length>1?` (${i+1}/${B.length})`:''}`),14,16);
+    d.addImage(src,'JPEG',14+(mw-b.w*f)/2,22,b.w*f,b.h*f,undefined,'FAST');
   }
   pdfSeitenzahlen(d);
   pdfAusgeben(d,`Referat_${NK}_${s.name.replace(/[^A-Za-z0-9ÄÖÜäöüß]+/g,'')}_${r.d}.pdf`);
@@ -1064,13 +1309,16 @@ async function speicherInfo(){
   let t=[];
   try{const p=await navigator.storage?.persisted?.();t.push(p?'Dauerhafter Speicher: aktiv':'Dauerhafter Speicher: nicht bestätigt')}catch{}
   try{const e=await navigator.storage?.estimate?.();if(e)t.push(`belegt ca. ${(e.usage/1048576).toFixed(1)} MB`)}catch{}
+  try{BILDER_EXPORT=await alleBilder();const n=Object.keys(BILDER_EXPORT).length;if(n)t.push(`${n} Plakatfoto${n===1?'':'s'}`)}catch{}
   t.push(`${S.stunden.length} Stunden · ${KL.map(k=>S.kbuch[k].length).reduce((a,b)=>a+b,0)} Tagebucheinträge · ${KL.map(k=>S.schueler[k].length+' in '+k).join(', ')}`);
   el.textContent=t.join(' · ');
 }
 async function sichern(){
   const n=new Date(),hm=String(n.getHours()).padStart(2,'0')+String(n.getMinutes()).padStart(2,'0');
   const name=`unterricht-2026_sicherung_${heute()}_${hm}.json`;
-  const text=JSON.stringify({app:'unterricht-2026',exportiert:n.toISOString(),stand:S});
+  /* Plakatfotos gehören in die Sicherung; nur noch vorhandene Referate zählen */
+  let bilder={};try{const alle=BILDER_EXPORT??await alleBilder();for(const L of Object.values(S.referate))for(const r of L)for(const id of refBildIds(r))if(alle[id])bilder[id]=alle[id]}catch{toast('Plakatfotos konnten nicht gelesen werden')}
+  const text=JSON.stringify({app:'unterricht-2026',exportiert:n.toISOString(),stand:S,...(Object.keys(bilder).length?{bilder}:{})});
   const ok=wie=>{S.letzteSicherung=new Date().toISOString();save();speicherInfo();toast(wie)};
   let grund='Teilen wird von diesem Browser nicht unterstützt';
   if(navigator.share){
@@ -1096,7 +1344,7 @@ $('#importdatei').addEventListener('change',async e=>{
     const o=JSON.parse(await f.text());
     if(o.app!=='unterricht-2026'||o.stand?.v!==1)throw new Error('Keine Sicherung dieser App.');
     if(!confirm(`Sicherung vom ${new Date(o.exportiert).toLocaleString('de-DE')} laden? Alle aktuellen Daten auf diesem Gerät werden ersetzt.`))return;
-    S=o.stand;migriere();await schreiben();render();toast('Sicherung geladen');
+    S=o.stand;migriere();await schreiben();await bilderErsetzen(o.bilder);render();toast('Sicherung geladen');
   }catch(err){alert('Laden fehlgeschlagen: '+err.message)}
 });
 
@@ -1185,7 +1433,7 @@ const ACT={
       L.push({id:uid(),name:kurzname(t,L.map(s=>s.name)),nach:t.nach,notizen:[]});n++}
     sortiere(NK);save();refreshModal();toast(`${n} hinzugefügt`+(e?`, ${e} ergänzt`:''))},
   schuelerWeg:d=>{const L=S.schueler[NK],s=L.find(x=>x.id===d.id);if(!confirm(`${s.name} mit allen Noten und Notizen entfernen?`))return;
-    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];delete S.beitraege[d.id];delete S.beitrAuto[d.id];delete S.referate[d.id];for(const l of S.listen[NK])delete l.werte[d.id];{const P=S.sitzplan[NK].plaetze;for(const q in P)if(P[q]===d.id)delete P[q]}save();refreshModal()},
+    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];delete S.beitraege[d.id];delete S.beitrAuto[d.id];bilderLoeschen((S.referate[d.id]||[]).flatMap(refBildIds));delete S.referate[d.id];for(const l of S.listen[NK])delete l.werte[d.id];{const P=S.sitzplan[NK].plaetze;for(const q in P)if(P[q]===d.id)delete P[q]}save();refreshModal()},
   schueler:d=>{NEDIT=null;oeffneSchueler(d.id)},
   notizSpeichern:d=>{const t=$('#notizfeld').value.trim();if(!t){toast('Bitte Text eingeben');return}
     const dat=$('#notizdatum').value||heute(),s=S.schueler[NK].find(x=>x.id===d.id),L=(s.notizen??=[]);
@@ -1231,7 +1479,9 @@ const ACT={
     delete S.noten[d.sid]?.[r.c];delete S.mDaten[d.sid]?.[r.c];r.c=null;save();$('#refStatus').innerHTML=refStatusHtml(d.sid,r)},
   refPdf:d=>{const r=refVon(d.sid,d.rid);if(r.lauf)refUhr(r,false);druckeReferat(d.sid,d.rid)},
   refWeg:d=>{const r=refVon(d.sid,d.rid);if(!confirm(`Referat${r.thema?` „${r.thema}“`:''} löschen?${r.c?' Die eingetragene mündliche Note bleibt in der Notentabelle stehen.':''}`))return;
-    S.referate[d.sid]=S.referate[d.sid].filter(x=>x.id!==d.rid);save();zu()},
+    bilderLoeschen(refBildIds(r));S.referate[d.sid]=S.referate[d.sid].filter(x=>x.id!==d.rid);save();zu()},
+  refBildNeu:d=>{const f=$('#plakatdatei');f.dataset.sid=d.sid;f.dataset.rid=d.rid;f.click()},
+  refBildZeigen:d=>plakatZeigen(d.sid,d.rid,d.bid),
   spWahl:d=>{SPSEL=SPSEL===d.id?null:d.id;render()},
   spAbwahl:()=>{SPSEL=null;render()},
   spModus:()=>{SPUMSETZEN=!SPUMSETZEN;SPSEL=null;render()},
@@ -1275,7 +1525,7 @@ const ACT={
   lHaken:(d,b)=>{const v=!wert(liste(),d.sid,d.sp);setWert(d.sid,d.sp,v);b.classList.toggle('an',v);b.textContent=v?'✓':''},
   sichern:()=>sichern(),
   import:()=>$('#importdatei').click(),
-  reset:()=>{if(confirm('Wirklich ALLE Daten auf diesem Gerät löschen?')&&confirm('Sicher? Das kann nicht rückgängig gemacht werden (außer über eine Sicherung).')){S=neuerStand();migriere();schreiben();render();toast('Zurückgesetzt')}},
+  reset:()=>{if(confirm('Wirklich ALLE Daten auf diesem Gerät löschen?')&&confirm('Sicher? Das kann nicht rückgängig gemacht werden (außer über eine Sicherung).')){S=neuerStand();migriere();schreiben();bilderErsetzen({}).catch(()=>{});render();toast('Zurückgesetzt')}},
 };
 function verschiebe(id,r){const i=S.stunden.findIndex(s=>s.id===id),j=i+r;if(j<0||j>=S.stunden.length)return;[S.stunden[i],S.stunden[j]]=[S.stunden[j],S.stunden[i]];save();render()}
 document.addEventListener('click',e=>{
