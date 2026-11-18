@@ -341,7 +341,7 @@ function neuerStand(){return{
   schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},kbuch:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
-const APP_VERSION='26';
+const APP_VERSION='27';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -724,11 +724,11 @@ function prFreigabeHtml(p){
 function prDetail(){
   const p=pr(),L=S.schueler[NK],zu=!!p.c;
   return `<div class="row" style="flex-wrap:wrap;margin-top:12px"><button class="btn" data-act="prListe">‹ Alle Kurzarbeiten ${NK}</button>
-    <div class="btns" style="margin:0"><button class="btn" data-act="prAufbau" ${zu?'disabled':''}>Aufgaben und Notenschlüssel</button><button class="btn" data-act="prPdf">PDF</button><button class="btn gefahr" data-act="prWeg">Löschen</button></div></div>
+    <div class="btns" style="margin:0">${zu?'<button class="btn" data-act="prSchluessel">Notenschlüssel ändern</button>':'<button class="btn" data-act="prAufbau">Aufgaben und Notenschlüssel</button>'}<button class="btn" data-act="prPdf">PDF</button><button class="btn gefahr" data-act="prWeg">Löschen</button></div></div>
   <div class="card" style="margin-top:12px"><b>${esc(p.titel)}</b> <span class="pill ${zu?'ok':'st-offen'}">${zu?'freigegeben':'in Arbeit'}</span>
     <div class="muted small">${fmtD(p.datum)} · ${fP(prMax(p))} Punkte${p.aufgaben.some(a=>a.zusatz)?' (+ Zusatz)':''} · Notenschlüssel ${prSchluesselTxt(p)}</div>
     ${p.hinweis?`<p class="hint">${esc(p.hinweis)}</p>`:''}</div>
-  <p class="hint">Punkte tippen (halbe Punkte mit Komma, z. B. 4,5). <kbd>Enter</kbd> springt zum nächsten Feld, am Zeilenende zur nächsten Person. Ungültige Werte (mehr als die Höchstpunktzahl, keine halben Punkte) werden rot markiert und nicht gezählt.${p.aufgaben.some(a=>a.zusatz)?' * Zusatzpunkte zählen zur Summe, nicht zur Gesamtpunktzahl; leer = 0.':''}</p>
+  <p class="hint">Punkte tippen (halbe Punkte mit Komma, z. B. 4,5). <kbd>Enter</kbd> oder <kbd>Tab</kbd> springt zum nächsten Feld, am Zeilenende zur nächsten Person; mit <kbd>⇧</kbd> zurück. Ungültige Werte (mehr als die Höchstpunktzahl, keine halben Punkte) werden rot markiert und nicht gezählt.${p.aufgaben.some(a=>a.zusatz)?' * Zusatzpunkte zählen zur Summe, nicht zur Gesamtpunktzahl; leer = 0.':''}</p>
   <div class="tabwrap"><table class="pr"><thead><tr><th>Name</th>
     ${p.aufgaben.map((a,i)=>`<th class="${a.zusatz&&!p.aufgaben[i-1]?.zusatz?'trenn':''}" title="${esc(a.t)}">${esc(a.nr)}${a.zusatz?'*':''}<div class="small">${a.t?esc(a.t.length>14?a.t.slice(0,13)+'…':a.t)+'<br>':''}max ${fP(+a.max)}</div></th>`).join('')}
     <th class="trenn">Summe<div class="small">von ${fP(prMax(p))}</div></th><th>Note</th><th></th></tr></thead>
@@ -745,9 +745,51 @@ function prRefresh(sid){
   const f=$('#prFuss');if(f)f.innerHTML=prFussHtml(p);
   const sp=$('#prSpiegel');if(sp)sp.innerHTML=prSpiegelHtml(p);
 }
-function prWeiter(el){const alle=$$('input[data-f="prP"]:not(:disabled)'),i=alle.indexOf(el);if(alle[i+1]){alle[i+1].focus();alle[i+1].select()}else el.blur()}
+function prWeiter(el,zurueck){const alle=$$('input[data-f="prP"]:not(:disabled)'),i=alle.indexOf(el),z=alle[zurueck?i-1:i+1];if(z){z.focus();z.select()}else if(!zurueck)el.blur()}
+/* Notenschlüssel geändert: Noten neu berechnen; nach der Freigabe auch in der Notentabelle nachziehen,
+   außer dort wurde die Note inzwischen von Hand geändert */
+function prSync(p){
+  const r={geaendert:0,hand:[]};if(!p.c||!p.ueb)return r;
+  for(const[sid,alt] of Object.entries(p.ueb)){
+    const neu=prNote(p,prSumme(p,sid));if(neu==null||neu===alt)continue;
+    const n=(S.noten[sid]??={});
+    if(n[p.c]===neu){p.ueb[sid]=neu}
+    else if(n[p.c]===alt){n[p.c]=neu;p.ueb[sid]=neu;r.geaendert++}
+    else r.hand.push(S.schueler[NK].find(s=>s.id===sid)?.name||'?');
+  }
+  return r;
+}
+function prSyncMelden(p){
+  const r=prSync(p);
+  if(r.geaendert)toast(`${r.geaendert} Note${r.geaendert===1?'':'n'} in der Notentabelle angepasst`);
+}
+let PRSNAP=null;
+function prAuswirkungHtml(p){
+  const L=S.schueler[NK].filter(s=>prStatus(p,s.id)==='ok'),w=L.map(s=>prNote(p,prSumme(p,s.id))),n=[1,2,3,4,5,6].map(g=>w.filter(v=>v===g).length);
+  const anders=PRSNAP?L.filter(s=>PRSNAP[s.id]!=null&&PRSNAP[s.id]!==prNote(p,prSumme(p,s.id))):[];
+  return `<div class="card" style="background:var(--bg);margin-top:8px"><b class="small">Auswirkung</b>
+    <table style="margin-top:4px"><tr>${[1,2,3,4,5,6].map(g=>`<th style="text-align:center">${g}</th>`).join('')}<th style="text-align:center">Ø</th></tr><tr>${n.map(x=>`<td style="text-align:center">${x}</td>`).join('')}<td style="text-align:center">${f2(mittel(w))}</td></tr></table>
+    <div class="small" style="margin-top:6px">${anders.length?'Geänderte Noten: '+anders.map(s=>`${esc(s.name)} ${PRSNAP[s.id]} → ${prNote(p,prSumme(p,s.id))}`).join(' · '):'<span class="muted">Noch keine Note geändert.</span>'}</div>
+    ${p.c?(()=>{const hand=S.schueler[NK].filter(s=>p.ueb?.[s.id]!=null&&S.noten[s.id]?.[p.c]!==prNote(p,prSumme(p,s.id)));
+      return '<p class="hint">Die Kurzarbeit ist freigegeben: Geänderte Noten werden sofort in der Notentabelle nachgezogen.</p>'+(hand.length?`<p class="small warn" style="padding:6px 8px;border-radius:8px;margin:4px 0 0">Nicht nachgezogen, weil in der Notentabelle von Hand geändert: ${hand.map(s=>`${esc(s.name)} (Tabelle ${S.noten[s.id]?.[p.c]??'leer'}, Schlüssel ${prNote(p,prSumme(p,s.id))})`).join(' · ')}</p>`:'')})():''}</div>`;
+}
+function oeffnePrSchluessel(){
+  const p=pr();PRSNAP=Object.fromEntries(S.schueler[NK].map(s=>[s.id,prNote(p,prSumme(p,s.id))]));
+  modal(()=>{const p=pr();if(!p)return '';
+    return `<h2>Notenschlüssel</h2><p class="muted small">${esc(p.titel)} · ${fP(prMax(p))} Punkte</p>${prSchluesselHtml(p)}
+    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="prGAuto">Vorschlag übernehmen</button></div>`},
+    ()=>{PRSNAP=null;$('#modal').hidden=true;$('#modal').innerHTML='';render()});
+}
+function prSchluesselHtml(p){
+  const auto=prGrenzenAuto(prMax(p));
+  return `<div class="prgrenz">${[1,2,3,4,5].map(n=>`<label>Note ${n} ab<input inputmode="decimal" data-f="prGrenze" data-i="${n-1}" value="${fP(p.grenzen[n-1])}"></label>`).join('')}</div>
+    <p class="small" style="margin:6px 0">${prSchluesselTxt(p)}</p>
+    <p class="hint">Mindestpunktzahl je Note, darunter Note 6; halbe Punkte mit Komma. Vorschlag aus ${fP(prMax(p))} Punkten (87,5 / 75 / 62,5 / 50 / 30 %, auf halbe Punkte aufgerundet): ${auto.map(fP).join(' / ')}${auto.some((x,i)=>x!==p.grenzen[i])?' – weicht vom eingetragenen Schlüssel ab.':' – entspricht dem eingetragenen Schlüssel.'}</p>
+    ${prAuswirkungHtml(p)}`;
+}
 function oeffnePrAufbau(){
-  modal(()=>{const p=pr();if(!p)return '';const auto=prGrenzenAuto(prMax(p));
+  const p0=pr();PRSNAP=Object.fromEntries(S.schueler[NK].map(s=>[s.id,prNote(p0,prSumme(p0,s.id))]));
+  modal(()=>{const p=pr();if(!p)return '';
     return `<h2>Aufgaben und Notenschlüssel</h2>
     <label>Titel<input data-f="prFeld" data-feld="titel" value="${esc(p.titel)}"></label>
     <label>Datum der Kurzarbeit<input type="date" data-f="prDatum" value="${p.datum}" style="max-width:200px"></label>
@@ -757,10 +799,10 @@ function oeffnePrAufbau(){
     ${p.aufgaben.map(a=>`<div class="praufg"><input data-f="prA" data-k="nr" data-a="${a.id}" value="${esc(a.nr)}" aria-label="Nummer"><input data-f="prA" data-k="t" data-a="${a.id}" value="${esc(a.t)}" aria-label="Bezeichnung"><input inputmode="decimal" data-f="prAMax" data-a="${a.id}" value="${fP(+a.max)}" aria-label="Höchstpunktzahl"><input type="checkbox" data-f="prAZ" data-a="${a.id}" ${a.zusatz?'checked':''} style="width:auto" aria-label="Zusatzaufgabe"><button class="icon" data-act="prAWeg" data-a="${a.id}" aria-label="Aufgabe löschen">🗑</button></div>`).join('')}
     <div class="btns"><button class="btn klein" data-act="prANeu">+ Aufgabe</button></div>
     <p class="hint">Zusatzaufgaben (z. B. Extrapunkt) zählen zur Summe, aber nicht zur Gesamtpunktzahl.</p>
-    <h3>Notenschlüssel <span class="muted small">· Mindestpunktzahl je Note</span></h3>
-    <div class="prgrenz">${[1,2,3,4,5].map(n=>`<label>Note ${n} ab<input inputmode="decimal" data-f="prGrenze" data-i="${n-1}" value="${fP(p.grenzen[n-1])}"></label>`).join('')}</div>
-    <p class="hint">Darunter Note 6. Vorschlag aus ${fP(prMax(p))} Punkten (87,5 / 75 / 62,5 / 50 / 30 %, auf halbe Punkte aufgerundet): ${auto.map(fP).join(' / ')}${auto.some((x,i)=>x!==p.grenzen[i])?' – weicht vom eingetragenen Schlüssel ab.':' – entspricht dem eingetragenen Schlüssel.'}</p>
-    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="prGAuto">Vorschlag übernehmen</button></div>`});
+    <h3>Notenschlüssel</h3>
+    ${prSchluesselHtml(p)}
+    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="prGAuto">Vorschlag übernehmen</button></div>`},
+    ()=>{PRSNAP=null;$('#modal').hidden=true;$('#modal').innerHTML='';render()});
 }
 function druckePruefung(){
   const p=pr(),L=S.schueler[NK],d=neuesPdf(p.aufgaben.length>7);
@@ -1622,7 +1664,8 @@ const ACT={
   prAWeg:d=>{const p=pr(),hat=Object.values(p.punkte).some(w=>w[d.a]!=null);
     if(hat&&!confirm('Für diese Aufgabe sind schon Punkte eingetragen. Aufgabe mit den Punkten löschen?'))return;
     p.aufgaben=p.aufgaben.filter(a=>a.id!==d.a);for(const w of Object.values(p.punkte))delete w[d.a];save();refreshModal()},
-  prGAuto:()=>{const p=pr();p.grenzen=prGrenzenAuto(prMax(p));save();refreshModal()},
+  prGAuto:()=>{const p=pr();p.grenzen=prGrenzenAuto(prMax(p));prSyncMelden(p);save();refreshModal()},
+  prSchluessel:()=>oeffnePrSchluessel(),
   schuelerVerw:()=>oeffneKlassenliste(),
   schuelerHinzu:()=>{const L=S.schueler[NK];let n=0,e=0;
     for(const z of $('#namenfeld').value.split('\n')){const t=zerlege(z);if(!t||!t.vor)continue;
@@ -1796,12 +1839,14 @@ const CH={
   prAZ:el=>{pr().aufgaben.find(x=>x.id===el.dataset.a).zusatz=el.checked;save();refreshModal()},
   prGrenze:el=>{const p=pr(),i=+el.dataset.i,v=+el.value.replace(',','.');
     if(isNaN(v)||v<0||!Number.isInteger(v*2)){el.value=fP(p.grenzen[i]);toast('Bitte ganze oder halbe Punkte');return}
-    p.grenzen[i]=v;save();
-    if(p.grenzen.some((g,j)=>j&&g>=p.grenzen[j-1]))toast('Achtung: Die Grenzen müssen von Note 1 bis 5 kleiner werden');
-    refreshModal()},
+    const neu=p.grenzen.slice();neu[i]=v;
+    if(neu.some((g,j)=>j&&g>=neu[j-1])){el.value=fP(p.grenzen[i]);alert('Die Mindestpunktzahlen müssen von Note 1 bis Note 5 kleiner werden.');return}
+    p.grenzen=neu;prSyncMelden(p);save();refreshModal()},
   mDatum:el=>{const md=(S.mDaten[el.dataset.sid]??={});if(el.value)md[el.dataset.c]=el.value;else delete md[el.dataset.c];save()},
 };
-document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches?.('input[data-f="prP"]')){e.preventDefault();prWeiter(e.target)}});
+/* Punkteeingabe: Enter und Tab springen zum nächsten Punktfeld, Umschalt+Tab/Umschalt+Enter zurück (Knöpfe dazwischen werden übersprungen) */
+document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key==='Tab')&&e.target.matches?.('input[data-f="prP"]')){e.preventDefault();prWeiter(e.target,e.shiftKey)}});
+document.addEventListener('focusin',e=>{if(e.target.matches?.('input[data-f="prP"]'))e.target.select()});
 document.addEventListener('input',e=>{const el=e.target.closest('[data-f]');if(el)IN[el.dataset.f]?.(el,e)});
 document.addEventListener('change',e=>{const el=e.target.closest('[data-f]');if(el)CH[el.dataset.f]?.(el,e)});
 
