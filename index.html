@@ -172,6 +172,20 @@ td:first-child,th:first-child{text-align:left}
 .bildansicht.gross img{max-width:none;max-height:none}
 .krit td{text-align:left}.krit td.num,.krit th.num{text-align:center}
 .krit input.g{width:46px;height:42px;text-align:center;padding:0;font-size:20px;font-weight:700}
+.pr input.p{width:54px;height:40px;text-align:center;padding:0;font-size:17px;font-weight:600}
+.pr input.p.falsch{border-color:var(--bad);background:var(--bad-soft);color:var(--bad)}
+.pr input.p:disabled{opacity:.55}
+.pr td.sum{font-weight:700;white-space:nowrap}
+.pr td.nt .pill{min-width:34px}
+.pr tr.fehlt td{color:var(--muted)}
+.pr tfoot td{color:var(--muted);font-weight:600;font-size:13px}
+.pr th .small{font-weight:400}
+.pr .trenn{border-left:2px solid var(--line)}
+.praufg{display:grid;grid-template-columns:70px 1fr 80px auto 38px;gap:8px;align-items:center;margin-top:6px}
+.praufg input{min-width:0}
+.prgrenz{display:flex;flex-wrap:wrap;gap:10px}
+.prgrenz label{margin:4px 0;font-size:13px}
+.prgrenz input{width:80px;text-align:center}
 .refnote{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
 .refnote input.g{width:54px;height:48px;text-align:center;padding:0;font-size:24px;font-weight:700}
 kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 5px;font:12px/1.5 inherit;background:var(--card)}
@@ -327,7 +341,7 @@ function neuerStand(){return{
   schueler:{'7d':[],'7e':[]},noten:{},mDaten:{},kaDaten:{'7d':{},'7e':{}},listen:{'7d':[],'7e':[]},kbuch:{'7d':[],'7e':[]},
   letzteSicherung:null,
 }}
-const APP_VERSION='25';
+const APP_VERSION='26';
 const DBN='unterricht2026', STORE='kv';
 let dbP=null;
 function idb(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -586,12 +600,12 @@ function kurzname({vor,nach},vorhanden){
 function vNoten(){
   const L=S.schueler[NK];
   const kopf=(S.alleReiter?'':sicherungsBanner())+`<div class="row" style="flex-wrap:wrap"><div class="seg">${KL.map(k=>`<button data-act="nK" data-k="${k}" class="${NK===k?'on':''}">${k}</button>`).join('')}</div>
-    <div class="seg"><button data-act="nAns" data-v="tabelle" class="${NANS==='tabelle'?'on':''}">Tabelle</button><button data-act="nAns" data-v="bild" class="${NANS==='bild'?'on':''}">Notenbild</button></div>
+    <div class="seg"><button data-act="nAns" data-v="tabelle" class="${NANS==='tabelle'?'on':''}">Tabelle</button><button data-act="nAns" data-v="bild" class="${NANS==='bild'?'on':''}">Notenbild</button><button data-act="nAns" data-v="ka" class="${NANS==='ka'?'on':''}">Kurzarbeiten</button></div>
     <div class="btns" style="margin:0"><button class="btn" data-act="schuelerVerw">Klassenliste</button><button class="btn" data-act="drucken">PDF</button><label class="bemschalter"><input type="checkbox" data-f="druckBem" ${S.druckBem!==false?'checked':''}> mit Bemerkungen</label></div></div>`;
   const nx=STICHTAGE.find(x=>x[0]>=heute());
   const kopf2=kopf+(nx?`<p class="small" style="margin:10px 0 0">Nächster Stichtag: <span class="pill warn">${fmtD(nx[0])} · ${nx[1]}</span> <span class="muted">(in ${Math.round((pd(nx[0])-pd(heute()))/864e5)} Tagen)</span></p>`:'');
   if(!L.length)return kopf2+`<div class="card" style="margin-top:12px"><p>Für ${NK} ist noch keine Klassenliste angelegt.</p><button class="btn prim" data-act="schuelerVerw">Klassenliste einfügen</button></div>`;
-  return kopf2+(NANS==='bild'?notenbild():notentabelle());
+  return kopf2+(NANS==='bild'?notenbild():NANS==='ka'?vPruefungen():notentabelle());
 }
 function notentabelle(){
   const L=S.schueler[NK],kd=S.kaDaten[NK];
@@ -624,6 +638,151 @@ function notenbild(){
     <div class="small muted">${w.length} von ${L.length} Noten · Ø ${f2(mittel(w))}</div>${w.length?verteilung(w):''}</div>`})).join('');
   return `<h2>Notenbild ${NK} · Stand ${fmtD(heute())}</h2><div class="grid2">${kpis}</div><h2>Einzelne Leistungsnachweise</h2><div class="grid2">${karten}</div>`;
 }
+/* ----- Kurzarbeiten auswerten: Punkte je Aufgabe → Summe → Note; Freigabe trägt die Noten in die Notentabelle ein ----- */
+const PR_VORLAGEN=[
+  {id:'ka-1-3-bis-1-5a',titel:'Kurzarbeit: Konsumentscheidungen, Belege, Zahlungsarten, Schaubilder',datum:'2026-11-17',
+   aufgaben:[['1','Spielkonsole',6],['2','Belege',6],['3','Zahlungsarten (ohne 3b)',4],['4','Schaubild',3],['3b','Extrapunkt 3b',1,1]],
+   grenzen:[17,14.5,12,9.5,6],
+   hinweis:'3b nicht gewertet: 1 Extrapunkt nur bei vollständig richtiger Lösung (keine Teilpunkte). Fehlende Einheit oder €-Zeichen: je Aufgabe einmal 0,5 P Abzug. Folgefehler weiter bewerten.'},
+];
+const PR_PROZ=[.875,.75,.625,.5,.3];
+let PRID=null;
+const prListe=()=>S.pruefungen[NK];
+const pr=()=>prListe().find(p=>p.id===PRID);
+const fP=x=>x==null?'–':String(Math.round(x*100)/100).replace('.',',');
+const prMax=p=>p.aufgaben.filter(a=>!a.zusatz).reduce((s,a)=>s+(+a.max||0),0);
+const prGrenzenAuto=max=>PR_PROZ.map(q=>Math.ceil(q*max*2)/2);
+/* Summe nur, wenn alle Pflichtaufgaben eingetragen sind; Zusatzaufgaben dürfen leer bleiben */
+function prSumme(p,sid){
+  if(p.fehlt[sid])return null;
+  const w=p.punkte[sid]||{};let s=0;
+  for(const a of p.aufgaben){const v=w[a.id];if(v==null){if(a.zusatz)continue;return null}s+=v}
+  return s;
+}
+const prNote=(p,s)=>{if(s==null)return null;const i=p.grenzen.findIndex(g=>s>=g);return i<0?6:i+1};
+const prStatus=(p,sid)=>p.fehlt[sid]?'fehlt':prSumme(p,sid)==null?'offen':'ok';
+function prSchluesselTxt(p){
+  const max=prMax(p),g=p.grenzen,o=[max,...g.map(x=>x-.5)];
+  return [1,2,3,4,5,6].map(n=>{const hi=o[n-1],lo=n<6?g[n-1]:0;return `${n}: ${fP(hi)}${hi!==lo?'–'+fP(lo):''}`}).join(' · ');
+}
+function prSlotVorschlag(p){
+  const h=p.datum<=HJ_ENDE?1:2,kd=S.kaDaten[NK];
+  return [h+'-KA1',h+'-KA2'].find(c=>!prListe().some(q=>q.c===c)&&!S.schueler[NK].some(s=>S.noten[s.id]?.[c]))||[h+'-KA1',h+'-KA2'].find(c=>!kd[c])||h+'-KA1';
+}
+function prNeu(vid){
+  const v=PR_VORLAGEN.find(x=>x.id===vid);
+  const aufgaben=v?v.aufgaben.map(([nr,t,max,z])=>({id:uid(),nr,t,max,zusatz:!!z})):[1,2,3,4].map(i=>({id:uid(),nr:String(i),t:'',max:5,zusatz:false}));
+  const p={id:uid(),titel:v?.titel||'Kurzarbeit',datum:v?.datum||heute(),vorlage:v?.id||null,hinweis:v?.hinweis||'',aufgaben,grenzen:[],punkte:{},fehlt:{},c:null,ueb:null,freigabe:null};
+  p.grenzen=v?v.grenzen.slice():prGrenzenAuto(prMax(p));
+  prListe().push(p);save();return p;
+}
+function vPruefungen(){
+  if(PRID&&!pr())PRID=null;
+  if(PRID)return prDetail();
+  const L=prListe(),n=S.schueler[NK].length;
+  return `<p class="hint">Punkte je Aufgabe eintragen – Summe und Note rechnet die App nach dem Notenschlüssel. In die Notentabelle kommen die Noten erst mit „Freigeben“.</p>
+  <div class="card" style="margin-top:12px"><div class="row" style="flex-wrap:wrap;justify-content:flex-start">
+    <select id="prVorlage" style="flex:1;min-width:240px">${PR_VORLAGEN.map(v=>`<option value="${v.id}">${fmtD(v.datum)} · ${esc(v.titel)}</option>`).join('')}<option value="">Eigene Kurzarbeit (Aufgaben selbst anlegen)</option></select>
+    <button class="btn prim" data-act="prNeu">+ Auswertung anlegen</button></div></div>
+  <div class="liste" style="margin-top:12px">${L.slice().sort((a,b)=>b.datum.localeCompare(a.datum)).map(p=>{const ok=S.schueler[NK].filter(s=>prStatus(p,s.id)==='ok').length;
+    return `<button class="card termin" data-act="prOeffnen" data-id="${p.id}"><div class="tt"><b>${esc(p.titel)}</b><div class="muted small">${fmtD(p.datum)} · ${fP(prMax(p))} Punkte · ${ok} von ${n} bewertet${p.c?` · ${slotName(p.c.slice(2))} (${p.c[0]}. HJ)`:''}</div></div><span class="pill ${p.c?'ok':'st-offen'}">${p.c?'freigegeben':'in Arbeit'}</span></button>`}).join('')||`<p class="muted">Noch keine Auswertung für ${NK}.</p>`}</div>`;
+}
+function prZeile(p,s,zu){
+  const w=p.punkte[s.id]||{},f=!!p.fehlt[s.id],su=prSumme(p,s.id),no=prNote(p,su);
+  return `<tr class="${f?'fehlt':''}"><td>${esc(s.name)}</td>
+    ${p.aufgaben.map((a,i)=>`<td class="${a.zusatz&&!p.aufgaben[i-1]?.zusatz?'trenn':''}"><input class="p" inputmode="decimal" autocomplete="off" autocorrect="off" enterkeyhint="next" data-f="prP" data-sid="${s.id}" data-a="${a.id}" value="${w[a.id]==null?'':fP(w[a.id])}" ${zu||f?'disabled':''} aria-label="${esc(s.name)} Aufgabe ${esc(a.nr)}"></td>`).join('')}
+    <td class="sum trenn" data-prs="${s.id}">${f?'fehlt':fP(su)}</td>
+    <td class="nt" data-prn="${s.id}">${no?`<span class="pill ${no<=4?'ok':'bad'}">${no}</span>`:''}</td>
+    <td><button class="btn klein" data-act="prFehlt" data-sid="${s.id}" ${zu?'disabled':''}>${f?'war da':'fehlt'}</button></td></tr>`;
+}
+function prFussHtml(p){
+  const L=S.schueler[NK].filter(s=>!p.fehlt[s.id]);
+  const avgA=a=>mittel(L.map(s=>p.punkte[s.id]?.[a.id]??null));
+  const ok=S.schueler[NK].filter(s=>prStatus(p,s.id)==='ok');
+  return `<td>Ø</td>${p.aufgaben.map((a,i)=>{const m=avgA(a);return `<td class="${a.zusatz&&!p.aufgaben[i-1]?.zusatz?'trenn':''}">${fP(m==null?null:Math.round(m*10)/10)}${m!=null&&!a.zusatz?`<div>${Math.round(m/a.max*100)} %</div>`:''}</td>`}).join('')}
+    <td class="trenn">${fP(mittel(ok.map(s=>prSumme(p,s.id)))==null?null:Math.round(mittel(ok.map(s=>prSumme(p,s.id)))*10)/10)}</td><td>${f2(mittel(ok.map(s=>prNote(p,prSumme(p,s.id)))))}</td><td></td>`;
+}
+function prSpiegelHtml(p){
+  const L=S.schueler[NK],st=L.map(s=>prStatus(p,s.id)),w=L.filter((s,i)=>st[i]==='ok').map(s=>prNote(p,prSumme(p,s.id)));
+  const z=x=>st.filter(v=>v===x).length,n=[1,2,3,4,5,6].map(g=>w.filter(v=>v===g).length);
+  return `<div class="row"><b>Notenspiegel</b><span class="kpi" style="font-size:22px">Ø ${f2(mittel(w))}</span></div>
+    <div class="small muted">${z('ok')} von ${L.length} bewertet${z('fehlt')?` · ${z('fehlt')} gefehlt`:''}${z('offen')?` · ${z('offen')} noch offen`:''}${w.length?` · 5 und 6: ${n[4]+n[5]}`:''}</div>
+    ${w.length?verteilung(w):''}
+    <table style="margin-top:8px"><tr>${[1,2,3,4,5,6].map(g=>`<th style="text-align:center">${g}</th>`).join('')}</tr><tr>${n.map(x=>`<td style="text-align:center">${x}</td>`).join('')}</tr></table>`;
+}
+function prFreigabeHtml(p){
+  if(p.c)return `<span class="pill ok">Freigegeben am ${fmtD(p.freigabe)} als ${slotName(p.c.slice(2))} (${p.c[0]}. HJ) · ${Object.keys(p.ueb||{}).length} Noten übernommen</span>
+    <p class="hint">Die Punkte sind gesperrt. Zum Nachtragen (z. B. Nachschreiber) oder Korrigieren die Freigabe zurücknehmen, ändern und erneut freigeben.</p>
+    <div class="btns"><button class="btn" data-act="prLoesen">Freigabe zurücknehmen</button></div>`;
+  const sl=prSlotVorschlag(p);
+  return `<div class="row" style="justify-content:flex-start;flex-wrap:wrap">
+    <select id="prSlot">${[1,2].flatMap(h=>['KA1','KA2'].map(k=>{const c=h+'-'+k,b=S.schueler[NK].filter(s=>S.noten[s.id]?.[c]).length,q=prListe().find(x=>x.c===c);
+      return `<option value="${c}" ${c===sl?'selected':''}>${slotName(k)} · ${h}. HJ${q?' (belegt durch „'+esc(q.titel.slice(0,30))+'“)':b?` (${b} Noten eingetragen)`:''}</option>`})).join('')}</select>
+    <button class="btn prim" data-act="prFreigabe">Freigeben und in die Notentabelle übernehmen</button></div>
+    <p class="hint">Übernommen werden nur vollständig bewertete Arbeiten. Wer gefehlt hat oder noch offen ist, bekommt keine Note. Das Datum der Kurzarbeit wird in der Spalte eingetragen.</p>`;
+}
+function prDetail(){
+  const p=pr(),L=S.schueler[NK],zu=!!p.c;
+  return `<div class="row" style="flex-wrap:wrap;margin-top:12px"><button class="btn" data-act="prListe">‹ Alle Kurzarbeiten ${NK}</button>
+    <div class="btns" style="margin:0"><button class="btn" data-act="prAufbau" ${zu?'disabled':''}>Aufgaben und Notenschlüssel</button><button class="btn" data-act="prPdf">PDF</button><button class="btn gefahr" data-act="prWeg">Löschen</button></div></div>
+  <div class="card" style="margin-top:12px"><b>${esc(p.titel)}</b> <span class="pill ${zu?'ok':'st-offen'}">${zu?'freigegeben':'in Arbeit'}</span>
+    <div class="muted small">${fmtD(p.datum)} · ${fP(prMax(p))} Punkte${p.aufgaben.some(a=>a.zusatz)?' (+ Zusatz)':''} · Notenschlüssel ${prSchluesselTxt(p)}</div>
+    ${p.hinweis?`<p class="hint">${esc(p.hinweis)}</p>`:''}</div>
+  <p class="hint">Punkte tippen (halbe Punkte mit Komma, z. B. 4,5). <kbd>Enter</kbd> springt zum nächsten Feld, am Zeilenende zur nächsten Person. Ungültige Werte (mehr als die Höchstpunktzahl, keine halben Punkte) werden rot markiert und nicht gezählt.${p.aufgaben.some(a=>a.zusatz)?' * Zusatzpunkte zählen zur Summe, nicht zur Gesamtpunktzahl; leer = 0.':''}</p>
+  <div class="tabwrap"><table class="pr"><thead><tr><th>Name</th>
+    ${p.aufgaben.map((a,i)=>`<th class="${a.zusatz&&!p.aufgaben[i-1]?.zusatz?'trenn':''}" title="${esc(a.t)}">${esc(a.nr)}${a.zusatz?'*':''}<div class="small">${a.t?esc(a.t.length>14?a.t.slice(0,13)+'…':a.t)+'<br>':''}max ${fP(+a.max)}</div></th>`).join('')}
+    <th class="trenn">Summe<div class="small">von ${fP(prMax(p))}</div></th><th>Note</th><th></th></tr></thead>
+  <tbody>${L.map(s=>prZeile(p,s,zu)).join('')}</tbody>
+  <tfoot><tr id="prFuss">${prFussHtml(p)}</tr></tfoot></table></div>
+  <div class="grid2" style="margin-top:12px"><div class="card" id="prSpiegel">${prSpiegelHtml(p)}</div>
+    <div class="card"><b>Freigabe</b><div id="prFreigabe" style="margin-top:8px">${prFreigabeHtml(p)}</div></div></div>`;
+}
+function prRefresh(sid){
+  const p=pr();if(!p)return;
+  const su=prSumme(p,sid),no=prNote(p,su),a=$(`[data-prs="${sid}"]`),b=$(`[data-prn="${sid}"]`);
+  if(a)a.textContent=p.fehlt[sid]?'fehlt':fP(su);
+  if(b)b.innerHTML=no?`<span class="pill ${no<=4?'ok':'bad'}">${no}</span>`:'';
+  const f=$('#prFuss');if(f)f.innerHTML=prFussHtml(p);
+  const sp=$('#prSpiegel');if(sp)sp.innerHTML=prSpiegelHtml(p);
+}
+function prWeiter(el){const alle=$$('input[data-f="prP"]:not(:disabled)'),i=alle.indexOf(el);if(alle[i+1]){alle[i+1].focus();alle[i+1].select()}else el.blur()}
+function oeffnePrAufbau(){
+  modal(()=>{const p=pr();if(!p)return '';const auto=prGrenzenAuto(prMax(p));
+    return `<h2>Aufgaben und Notenschlüssel</h2>
+    <label>Titel<input data-f="prFeld" data-feld="titel" value="${esc(p.titel)}"></label>
+    <label>Datum der Kurzarbeit<input type="date" data-f="prDatum" value="${p.datum}" style="max-width:200px"></label>
+    <label>Hinweise zur Korrektur<textarea data-f="prFeld" data-feld="hinweis" style="min-height:60px">${esc(p.hinweis)}</textarea></label>
+    <h3>Aufgaben <span class="muted small">· ${fP(prMax(p))} Punkte</span></h3>
+    <div class="praufg small muted"><span>Nr.</span><span>Bezeichnung</span><span>max. P</span><span>Zusatz</span><span></span></div>
+    ${p.aufgaben.map(a=>`<div class="praufg"><input data-f="prA" data-k="nr" data-a="${a.id}" value="${esc(a.nr)}" aria-label="Nummer"><input data-f="prA" data-k="t" data-a="${a.id}" value="${esc(a.t)}" aria-label="Bezeichnung"><input inputmode="decimal" data-f="prAMax" data-a="${a.id}" value="${fP(+a.max)}" aria-label="Höchstpunktzahl"><input type="checkbox" data-f="prAZ" data-a="${a.id}" ${a.zusatz?'checked':''} style="width:auto" aria-label="Zusatzaufgabe"><button class="icon" data-act="prAWeg" data-a="${a.id}" aria-label="Aufgabe löschen">🗑</button></div>`).join('')}
+    <div class="btns"><button class="btn klein" data-act="prANeu">+ Aufgabe</button></div>
+    <p class="hint">Zusatzaufgaben (z. B. Extrapunkt) zählen zur Summe, aber nicht zur Gesamtpunktzahl.</p>
+    <h3>Notenschlüssel <span class="muted small">· Mindestpunktzahl je Note</span></h3>
+    <div class="prgrenz">${[1,2,3,4,5].map(n=>`<label>Note ${n} ab<input inputmode="decimal" data-f="prGrenze" data-i="${n-1}" value="${fP(p.grenzen[n-1])}"></label>`).join('')}</div>
+    <p class="hint">Darunter Note 6. Vorschlag aus ${fP(prMax(p))} Punkten (87,5 / 75 / 62,5 / 50 / 30 %, auf halbe Punkte aufgerundet): ${auto.map(fP).join(' / ')}${auto.some((x,i)=>x!==p.grenzen[i])?' – weicht vom eingetragenen Schlüssel ab.':' – entspricht dem eingetragenen Schlüssel.'}</p>
+    <div class="btns"><button class="btn prim" data-act="zu">Fertig</button><button class="btn" data-act="prGAuto">Vorschlag übernehmen</button></div>`});
+}
+function druckePruefung(){
+  const p=pr(),L=S.schueler[NK],d=neuesPdf(p.aufgaben.length>7);
+  const y=pdfKopf(d,`${p.titel} · ${NK}`,`${fmtD(p.datum)} · ${fP(prMax(p))} Punkte · Notenschlüssel ${prSchluesselTxt(p)} · ${p.c?`freigegeben am ${fmtD(p.freigabe)} als ${slotName(p.c.slice(2))} (${p.c[0]}. HJ)`:'noch nicht freigegeben'}`);
+  const ok=L.filter(s=>prStatus(p,s.id)==='ok');
+  const body=L.map(s=>{const f=p.fehlt[s.id],w=p.punkte[s.id]||{},su=prSumme(p,s.id);
+    return [s.name,...p.aufgaben.map(a=>f||w[a.id]==null?'':fP(w[a.id])),f?'fehlt':su==null?'':fP(su),f?'':prNote(p,su)??''].map(pdfTxt)});
+  const avg=x=>x==null?'':fP(Math.round(x*10)/10);
+  body.push(['Ø',...p.aufgaben.map(a=>avg(mittel(L.filter(s=>!p.fehlt[s.id]).map(s=>p.punkte[s.id]?.[a.id]??null)))),avg(mittel(ok.map(s=>prSumme(p,s.id)))),f2(mittel(ok.map(s=>prNote(p,prSumme(p,s.id)))))]);
+  d.autoTable({...TAB_STIL,startY:y,head:[['Name',...p.aufgaben.map(a=>`${a.nr}${a.zusatz?'*':''}\n(${fP(+a.max)})`),`Summe\n(${fP(prMax(p))})`,'Note'].map(pdfTxt)],body,
+    headStyles:{...TAB_STIL.headStyles,halign:'center'},bodyStyles:{halign:'center'},columnStyles:{0:{halign:'left',cellWidth:38}},
+    didParseCell:c=>{if(c.section!=='body')return;if(c.row.index===L.length||c.column.index>=p.aufgaben.length+1)c.cell.styles.fontStyle='bold'}});
+  const w=ok.map(s=>prNote(p,prSumme(p,s.id))),n=[1,2,3,4,5,6].map(g=>w.filter(v=>v===g).length);
+  let y2=d.lastAutoTable.finalY+8;if(y2>d.internal.pageSize.getHeight()-40){d.addPage();y2=18}
+  d.setFont('helvetica','bold');d.setFontSize(12);d.text('Notenspiegel',14,y2);
+  d.autoTable({...TAB_STIL,startY:y2+3,tableWidth:120,head:[['Note','1','2','3','4','5','6','Ø']],body:[['Anzahl',...n.map(String),f2(mittel(w))]],styles:{...TAB_STIL.styles,halign:'center'}});
+  let y3=d.lastAutoTable.finalY+6;d.setFont('helvetica','normal');d.setFontSize(9);
+  const fehlt=L.filter(s=>p.fehlt[s.id]).length,offen=L.filter(s=>prStatus(p,s.id)==='offen').length;
+  d.text(pdfTxt(`${ok.length} von ${L.length} bewertet${fehlt?` · ${fehlt} gefehlt`:''}${offen?` · ${offen} offen`:''}${p.aufgaben.some(a=>a.zusatz)?' · * Zusatzpunkte, nicht in der Gesamtpunktzahl':''}`),14,y3);
+  pdfSeitenzahlen(d);
+  pdfAusgeben(d,`Auswertung_${p.titel.replace(/^Kurzarbeit:\s*/,'').replace(/[^A-Za-z0-9ÄÖÜäöüß-]+/g,'_').slice(0,40)}_${NK}.pdf`);
+}
 function oeffneKlassenliste(){
   modal(()=>{const L=S.schueler[NK];
     return `<h2>Klassenliste ${NK}</h2>
@@ -642,6 +801,10 @@ function oeffneSchueler(id){
     <table><thead><tr><th></th>${SLOTS.map(sl=>`<th>${slotName(sl)}</th>`).join('')}<th>Ø</th><th>Stand</th></tr></thead>
     <tbody>${[1,2].map(h=>`<tr><td>${h}. HJ</td>${SLOTS.map(sl=>`<td>${n[h+'-'+sl]||'–'}${mDatum(id,h+'-'+sl)?`<div class="small muted">${fmtD(mDatum(id,h+'-'+sl)).slice(0,6)}</div>`:''}</td>`).join('')}<td><b>${f2(schnitt(id,h))}</b></td><td class="small">${anzahl(id,h)}</td></tr>`).join('')}
     <tr><td colspan="5"><b>Schuljahr</b></td><td><b>${f2(schnitt(id,0))}</b></td><td></td></tr></tbody></table>
+    ${(()=>{const P=S.pruefungen[NK].filter(p=>p.fehlt[id]||Object.keys(p.punkte[id]||{}).length).sort((a,b)=>a.datum.localeCompare(b.datum));
+      return P.length?`<h3>Kurzarbeiten</h3><div class="liste">${P.map(p=>{const su=prSumme(p,id),no=prNote(p,su),w=p.punkte[id]||{};
+        return `<button class="card termin" style="min-height:0" data-act="prVonSchueler" data-id="${p.id}"><div class="tt"><b>${esc(p.titel)}</b><div class="muted small">${fmtD(p.datum)} · ${p.fehlt[id]?'gefehlt':p.aufgaben.map(a=>`${esc(a.nr)}: ${fP(w[a.id])}`).join(' · ')+` · Summe ${fP(su)} von ${fP(prMax(p))} P`}${p.c?` · ${slotName(p.c.slice(2))} (${p.c[0]}. HJ)`:''}</div></div>
+        <span class="pill ${!no?'st-offen':p.c&&p.ueb?.[id]?'ok':'warn'}">${no?'Note '+no+(p.c&&p.ueb?.[id]?'':' · nicht freigegeben'):p.fehlt[id]?'fehlt':'offen'}</span></button>`}).join('')}</div>`:''})()}
     <h3>Referate</h3>
     <div class="liste">${(S.referate[id]||[]).slice().sort((a,b)=>b.d.localeCompare(a.d)).map(r=>{const no=refNote(r);
       return `<button class="card termin" style="min-height:0" data-act="refOeffnen" data-sid="${id}" data-rid="${r.id}"><div class="tt"><b>${esc(r.thema||'(ohne Thema)')}</b>
@@ -1126,7 +1289,7 @@ const beitrTxt=sid=>{const b=beitr(sid),p=b.filter(x=>x==='+').length,m=b.filter
 const HJ_ENDE='2027-02-19';
 const aktHJ=()=>heute()<=HJ_ENDE?1:2;
 const beitrNote=b=>Math.min(6,8-b.filter(x=>x==='+').length);
-function migriere(){S.referate??={};S.beitraege??={};S.beitrAuto??={};S.mDaten??={};S.listen??={};S.sitzplan??={};S.kbuch??={};for(const k of KL){S.listen[k]??=[];S.kbuch[k]??=[];S.sitzplan[k]??={plaetze:{}};S.sitzplan[k].lehrersicht=true;sortiere(k)}}
+function migriere(){S.pruefungen??={};for(const k of KL)S.pruefungen[k]??=[];S.referate??={};S.beitraege??={};S.beitrAuto??={};S.mDaten??={};S.listen??={};S.sitzplan??={};S.kbuch??={};for(const k of KL){S.listen[k]??=[];S.kbuch[k]??=[];S.sitzplan[k]??={plaetze:{}};S.sitzplan[k].lehrersicht=true;sortiere(k)}}
 const liste=()=>S.listen[NK].find(l=>l.id===LID);
 const wert=(l,sid,sp)=>l.werte[sid]?.[sp];
 const leer=(sp,v)=>sp.typ==='haken'?!v:(v==null||v==='');
@@ -1422,8 +1585,44 @@ const ACT={
   thWeg:d=>{const t=thema(d.id),n=S.stunden.filter(s=>s.themaId===d.id).length;
     if(!confirm(`Unterthema „${t.titel}“ löschen?${n?` ${n} Stunde(n) verlieren die Zuordnung.`:''}`))return;
     S.themen=S.themen.filter(x=>x.id!==d.id);S.stunden.forEach(s=>{if(s.themaId===d.id)s.themaId=null});save();render()},
-  nK:d=>{NK=d.k;LID=null;SPSEL=null;render()},
-  nAns:d=>{NANS=d.v;render()},
+  nK:d=>{NK=d.k;LID=null;SPSEL=null;PRID=null;render()},
+  nAns:d=>{NANS=d.v;PRID=null;render()},
+  prNeu:()=>{if(!S.schueler[NK].length){toast('Zuerst die Klassenliste anlegen');return}
+    const v=$('#prVorlage').value;
+    if(v&&prListe().some(p=>p.vorlage===v)&&!confirm(`Für ${NK} gibt es schon eine Auswertung dieser Kurzarbeit. Trotzdem eine zweite anlegen (z. B. für Nachschreiber)?`))return;
+    const p=prNeu(v);PRID=p.id;render();window.scrollTo(0,0);if(!v)oeffnePrAufbau()},
+  prOeffnen:d=>{PRID=d.id;render();window.scrollTo(0,0)},
+  prVonSchueler:d=>{$('#modal').hidden=true;$('#modal').innerHTML='';modalFn=null;modalZurueck=null;TAB='noten';NANS='ka';PRID=d.id;render();window.scrollTo(0,0)},
+  prListe:()=>{PRID=null;render()},
+  prAufbau:()=>oeffnePrAufbau(),
+  prPdf:()=>druckePruefung(),
+  prFehlt:d=>{const p=pr();if(p.fehlt[d.sid])delete p.fehlt[d.sid];
+    else{if(Object.keys(p.punkte[d.sid]||{}).length&&!confirm('Schon eingetragene Punkte bleiben gespeichert, zählen aber nicht. Als „fehlt“ markieren?'))return;p.fehlt[d.sid]=true}
+    save();render()},
+  prFreigabe:()=>{const p=pr(),c=$('#prSlot').value,L=S.schueler[NK];
+    const q=prListe().find(x=>x.c===c&&x.id!==p.id);
+    if(q){alert(`${slotName(c.slice(2))} (${c[0]}. HJ) ist schon durch die Auswertung „${q.titel}“ belegt. Bitte eine andere Spalte wählen oder dort die Freigabe zurücknehmen.`);return}
+    const ok=L.filter(s=>prStatus(p,s.id)==='ok'),offen=L.filter(s=>prStatus(p,s.id)==='offen'),fehlt=L.filter(s=>p.fehlt[s.id]);
+    if(!ok.length){toast('Noch keine vollständig bewertete Arbeit');return}
+    const belegt=ok.filter(s=>S.noten[s.id]?.[c]&&S.noten[s.id][c]!==prNote(p,prSumme(p,s.id)));
+    let m=`${ok.length} Note${ok.length===1?'':'n'} als ${slotName(c.slice(2))} (${c[0]}. HJ) in die Notentabelle übernehmen?`;
+    if(offen.length)m+=`\n\nOhne vollständige Punkte (keine Note): ${offen.map(s=>s.name).join(', ')}`;
+    if(fehlt.length)m+=`\n\nGefehlt (keine Note): ${fehlt.map(s=>s.name).join(', ')}`;
+    if(belegt.length)m+=`\n\nAchtung: Bei ${belegt.map(s=>s.name).join(', ')} steht in dieser Spalte schon eine andere Note. Sie wird ersetzt.`;
+    if(!confirm(m))return;
+    p.ueb={};for(const s of ok){const no=prNote(p,prSumme(p,s.id));(S.noten[s.id]??={})[c]=no;p.ueb[s.id]=no}
+    p.c=c;p.freigabe=heute();S.kaDaten[NK][c]=p.datum;save();render();toast(`${ok.length} Noten übernommen`)},
+  prLoesen:()=>{const p=pr();if(!confirm(`Freigabe zurücknehmen? Die ${Object.keys(p.ueb||{}).length} übernommenen Noten werden aus der Spalte ${slotName(p.c.slice(2))} (${p.c[0]}. HJ) entfernt, die Punkte bleiben erhalten.`))return;
+    for(const[sid,no] of Object.entries(p.ueb||{}))if(S.noten[sid]?.[p.c]===no)delete S.noten[sid][p.c];
+    if(S.kaDaten[NK][p.c]===p.datum)delete S.kaDaten[NK][p.c];
+    p.c=null;p.ueb=null;p.freigabe=null;save();render();toast('Freigabe zurückgenommen')},
+  prWeg:()=>{const p=pr();if(!confirm(`Auswertung „${p.titel}“ mit allen Punkten löschen?${p.c?' Die übernommenen Noten bleiben in der Notentabelle stehen.':''}`))return;
+    S.pruefungen[NK]=prListe().filter(x=>x.id!==p.id);PRID=null;save();render()},
+  prANeu:()=>{const p=pr();p.aufgaben.push({id:uid(),nr:String(p.aufgaben.filter(a=>!a.zusatz).length+1),t:'',max:2,zusatz:false});save();refreshModal()},
+  prAWeg:d=>{const p=pr(),hat=Object.values(p.punkte).some(w=>w[d.a]!=null);
+    if(hat&&!confirm('Für diese Aufgabe sind schon Punkte eingetragen. Aufgabe mit den Punkten löschen?'))return;
+    p.aufgaben=p.aufgaben.filter(a=>a.id!==d.a);for(const w of Object.values(p.punkte))delete w[d.a];save();refreshModal()},
+  prGAuto:()=>{const p=pr();p.grenzen=prGrenzenAuto(prMax(p));save();refreshModal()},
   schuelerVerw:()=>oeffneKlassenliste(),
   schuelerHinzu:()=>{const L=S.schueler[NK];let n=0,e=0;
     for(const z of $('#namenfeld').value.split('\n')){const t=zerlege(z);if(!t||!t.vor)continue;
@@ -1433,7 +1632,7 @@ const ACT={
       L.push({id:uid(),name:kurzname(t,L.map(s=>s.name)),nach:t.nach,notizen:[]});n++}
     sortiere(NK);save();refreshModal();toast(`${n} hinzugefügt`+(e?`, ${e} ergänzt`:''))},
   schuelerWeg:d=>{const L=S.schueler[NK],s=L.find(x=>x.id===d.id);if(!confirm(`${s.name} mit allen Noten und Notizen entfernen?`))return;
-    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];delete S.beitraege[d.id];delete S.beitrAuto[d.id];bilderLoeschen((S.referate[d.id]||[]).flatMap(refBildIds));delete S.referate[d.id];for(const l of S.listen[NK])delete l.werte[d.id];{const P=S.sitzplan[NK].plaetze;for(const q in P)if(P[q]===d.id)delete P[q]}save();refreshModal()},
+    S.schueler[NK]=L.filter(x=>x.id!==d.id);delete S.noten[d.id];delete S.mDaten[d.id];delete S.beitraege[d.id];delete S.beitrAuto[d.id];bilderLoeschen((S.referate[d.id]||[]).flatMap(refBildIds));delete S.referate[d.id];for(const l of S.listen[NK])delete l.werte[d.id];for(const p of S.pruefungen[NK]){delete p.punkte[d.id];delete p.fehlt[d.id];if(p.ueb)delete p.ueb[d.id]}{const P=S.sitzplan[NK].plaetze;for(const q in P)if(P[q]===d.id)delete P[q]}save();refreshModal()},
   schueler:d=>{NEDIT=null;oeffneSchueler(d.id)},
   notizSpeichern:d=>{const t=$('#notizfeld').value.trim();if(!t){toast('Bitte Text eingeben');return}
     const dat=$('#notizdatum').value||heute(),s=S.schueler[NK].find(x=>x.id===d.id),L=(s.notizen??=[]);
@@ -1549,6 +1748,16 @@ const IN={
     if(v){const alle=$$('input[data-f="refKrit"]'),i=alle.indexOf(el);(alle[i+1]||$('#refBem')).focus();alle[i+1]?.select()}
   },
   refNote:el=>{const r=refVon(el.dataset.sid,el.dataset.rid),v=el.value.replace(/[^1-6]/g,'').slice(-1);el.value=v;r.note=v?+v:null;refNeuBerechnen(el.dataset.sid,r)},
+  prP:el=>{
+    const p=pr(),sid=el.dataset.sid,a=p.aufgaben.find(x=>x.id===el.dataset.a),t=el.value.replace(/\s/g,'').replace('.',','),w=(p.punkte[sid]??={});
+    if(t===''){delete w[a.id];el.classList.remove('falsch')}
+    else{const v=+t.replace(',','.'),gut=/^\d+(,\d?)?$/.test(t)&&!isNaN(v)&&v<=+a.max&&Number.isInteger(v*2);
+      el.classList.toggle('falsch',!gut);
+      if(gut)w[a.id]=v;else delete w[a.id]}
+    if(!Object.keys(w).length)delete p.punkte[sid];
+    save();prRefresh(sid)},
+  prFeld:el=>{pr()[el.dataset.feld]=el.value;save()},
+  prA:el=>{pr().aufgaben.find(a=>a.id===el.dataset.a)[el.dataset.k]=el.value;save()},
   sName:el=>{S.schueler[NK].find(x=>x.id===el.dataset.id).name=el.value;save()},
   sNach:el=>{S.schueler[NK].find(x=>x.id===el.dataset.id).nach=el.value.trim();save()},
   note:el=>{
@@ -1580,8 +1789,19 @@ const CH={
   sNach:()=>{sortiere(NK);save();refreshModal()},
   alleReiter:el=>{S.alleReiter=el.checked;save();render()},
   druckBem:el=>{S.druckBem=el.checked;save();$$('[data-f=druckBem]').forEach(x=>x.checked=el.checked)},
+  prDatum:el=>{if(!el.value)return;pr().datum=el.value;save()},
+  prAMax:el=>{const a=pr().aufgaben.find(x=>x.id===el.dataset.a),v=+el.value.replace(',','.');
+    if(isNaN(v)||v<0||!Number.isInteger(v*2)){el.value=fP(+a.max);toast('Bitte ganze oder halbe Punkte');return}
+    a.max=v;save();refreshModal()},
+  prAZ:el=>{pr().aufgaben.find(x=>x.id===el.dataset.a).zusatz=el.checked;save();refreshModal()},
+  prGrenze:el=>{const p=pr(),i=+el.dataset.i,v=+el.value.replace(',','.');
+    if(isNaN(v)||v<0||!Number.isInteger(v*2)){el.value=fP(p.grenzen[i]);toast('Bitte ganze oder halbe Punkte');return}
+    p.grenzen[i]=v;save();
+    if(p.grenzen.some((g,j)=>j&&g>=p.grenzen[j-1]))toast('Achtung: Die Grenzen müssen von Note 1 bis 5 kleiner werden');
+    refreshModal()},
   mDatum:el=>{const md=(S.mDaten[el.dataset.sid]??={});if(el.value)md[el.dataset.c]=el.value;else delete md[el.dataset.c];save()},
 };
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches?.('input[data-f="prP"]')){e.preventDefault();prWeiter(e.target)}});
 document.addEventListener('input',e=>{const el=e.target.closest('[data-f]');if(el)IN[el.dataset.f]?.(el,e)});
 document.addEventListener('change',e=>{const el=e.target.closest('[data-f]');if(el)CH[el.dataset.f]?.(el,e)});
 
